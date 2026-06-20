@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["image-codecs", "audio-codecs", "video-codecs"]
+default = ["image-codecs", "audio-codecs", "video-codecs", "encode"]
 image-codecs = []
 audio-codecs = []
 video-codecs = ["dep:mp4", "dep:matroska-demuxer", "dep:oxideav-vp8"]
+encode = ["video-codecs", "dep:rav1e", "dep:oxideav-mkv", "dep:oxideav-core"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
@@ -23,6 +24,11 @@ rubato = "0.15"
 mp4 = { version = "0.14", optional = true }
 matroska-demuxer = { version = "0.7", optional = true }
 oxideav-vp8 = { version = "0.2", optional = true }
+
+# Encoding + muxing (optional, enabled by `encode` feature)
+rav1e = { version = "0.8", optional = true }
+oxideav-mkv = { version = "0.0.9", optional = true }
+oxideav-core = { version = "0.1", optional = true }
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

@@ -8,8 +8,9 @@ name = "ferrox"
 path = "src/main.rs"
 
 [dependencies]
-ferrox-core = { path = "../core" }
+ferrox-core = { path = "../core", features = ["encode"] }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+indicatif = "0.17"

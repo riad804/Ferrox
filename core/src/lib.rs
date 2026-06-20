@@ -28,3 +28,11 @@ pub use codecs::video::{IvfDemuxer, Mp4Demuxer, Vp8Decoder, WebmDemuxer};
 pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]
 pub use demux_graph::{extract_audio, extract_frames, ContainerKind, ExtractResult};
+#[cfg(feature = "encode")]
+pub use codecs::video::{Av1Encoder, WebmMuxer};
+#[cfg(feature = "encode")]
+pub use traits::{ContainerMuxer, VideoEncoder};
+#[cfg(feature = "encode")]
+pub use video::EncodedPacket;
+#[cfg(feature = "encode")]
+pub mod transcode_graph;

@@ -1,5 +1,20 @@
 use crate::frame::{Frame, PixelFormat};
 
+/// A compressed video packet produced by an encoder.
+#[derive(Debug, Clone)]
+pub struct EncodedPacket {
+    /// Encoded bitstream bytes.
+    pub data: Vec<u8>,
+    /// Presentation timestamp (in timebase units; 1/fps by default).
+    pub pts: u64,
+    /// Duration in timebase units.
+    pub duration: u64,
+    /// Whether this packet is a keyframe / random-access point.
+    pub is_keyframe: bool,
+    /// Which stream this belongs to (0 = video, 1 = audio typically).
+    pub stream_index: usize,
+}
+
 /// A decoded video frame: an image plane + presentation timestamp.
 #[derive(Debug, Clone)]
 pub struct VideoFrame {
@@ -39,6 +54,8 @@ pub struct Packet {
 /// High-level codec kind reported by a demuxer for each track.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodecId {
+    /// AV1 video (WebM / MP4 containers).
+    Av1,
     /// VP8 video (WebM / IVF containers).
     Vp8,
     /// VP9 video (WebM container).
@@ -61,6 +78,7 @@ pub enum CodecId {
 impl std::fmt::Display for CodecId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Av1 => write!(f, "AV1"),
             Self::Vp8 => write!(f, "VP8"),
             Self::Vp9 => write!(f, "VP9"),
             Self::H264 => write!(f, "H264"),

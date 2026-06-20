@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use indicatif::{ProgressBar, ProgressStyle};
 use tracing::info;
 use ferrox_core::{
     demux_graph,
     filters::{ResampleFilter, ResizeFilter, VolumeFilter},
+    transcode_graph::{TranscodeOptions, VideoCodecChoice},
     AudioGraph, Graph,
 };
 
@@ -100,6 +102,31 @@ enum Command {
     VideoInfo {
         /// Input container file (WebM, MKV, or MP4).
         input: PathBuf,
+    },
+
+    /// Transcode a video file (decode → filter → encode → mux).
+    ///
+    /// Example: ferrox transcode input.ivf output.webm --codec av1 --resize 320x240
+    Transcode {
+        /// Input video file (IVF/WebM/MKV/MP4).
+        input: PathBuf,
+        /// Output file (.webm).
+        output: PathBuf,
+        /// Video codec: av1 (default), copy.
+        #[arg(short = 'c', long = "codec", default_value = "av1")]
+        codec: String,
+        /// Resize output: WIDTHxHEIGHT, e.g. 320x240.
+        #[arg(long)]
+        resize: Option<String>,
+        /// Output frame rate: NUM/DEN or NUM (e.g. 30 or 24000/1001).
+        #[arg(long)]
+        fps: Option<String>,
+        /// rav1e speed preset 0 (slowest) to 10 (fastest).
+        #[arg(long, default_value = "6")]
+        speed: u8,
+        /// rav1e quantizer 0 (lossless) to 255 (worst).
+        #[arg(long, default_value = "100")]
+        quantizer: usize,
     },
 }
 
@@ -201,6 +228,72 @@ fn main() -> Result<()> {
                     )
                 })?;
             info!("extracted audio: {} → {}", input.display(), output.display());
+        }
+
+        Command::Transcode { input, output, codec, resize, fps, speed, quantizer } => {
+            let video_codec = match codec.to_ascii_lowercase().as_str() {
+                "av1" => VideoCodecChoice::Av1,
+                "copy" => VideoCodecChoice::Av1, // copy handled via flag below
+                other => anyhow::bail!("unsupported video codec '{}'; supported: av1, copy", other),
+            };
+            let copy_video = codec.to_ascii_lowercase() == "copy";
+
+            let resize_dim = resize.as_deref().map(|s| {
+                let (w, h) = s.split_once('x')
+                    .ok_or_else(|| anyhow::anyhow!("--resize must be WIDTHxHEIGHT, e.g. 320x240"))?;
+                Ok::<_, anyhow::Error>((w.parse::<u32>()?, h.parse::<u32>()?))
+            }).transpose()?;
+
+            let fps_ratio = fps.as_deref().map(|s| {
+                if let Some((n, d)) = s.split_once('/') {
+                    Ok::<_, anyhow::Error>((n.parse::<u64>()?, d.parse::<u64>()?))
+                } else {
+                    Ok((s.parse::<u64>()?, 1u64))
+                }
+            }).transpose()?;
+
+            let opts = TranscodeOptions {
+                video_codec,
+                resize: resize_dim,
+                fps: fps_ratio,
+                speed,
+                quantizer,
+                copy_video,
+            };
+
+            let pb = ProgressBar::new_spinner();
+            pb.set_style(
+                ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}")
+                    .unwrap()
+            );
+            pb.set_message("transcoding…");
+            let pb_clone = pb.clone();
+
+            let result = ferrox_core::transcode_graph::transcode(
+                &input,
+                &output,
+                &opts,
+                Some(Box::new(move |frames, _total| {
+                    pb_clone.set_message(format!("encoded {frames} frames"));
+                    pb_clone.tick();
+                })),
+            ).with_context(|| format!(
+                "transcoding '{}' → '{}'",
+                input.display(), output.display()
+            ))?;
+
+            pb.finish_and_clear();
+            info!(
+                frames_encoded = result.frames_encoded,
+                frames_copied = result.frames_copied,
+                "transcode complete: {} → {}",
+                input.display(), output.display()
+            );
+            println!(
+                "Transcoded {} → {} ({} frames encoded, {} copied)",
+                input.display(), output.display(),
+                result.frames_encoded, result.frames_copied
+            );
         }
 
         Command::VideoInfo { input } => {

@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use crate::{Frame, Result, audio::AudioFrame, media::MediaFrame};
 #[cfg(feature = "video-codecs")]
-use crate::video::{Packet, StreamInfo, VideoFrame};
+use crate::video::{EncodedPacket, Packet, StreamInfo, VideoFrame};
 
 /// Identifies a media format.
 pub trait Format: Send + Sync {
@@ -119,4 +119,33 @@ pub trait ContainerDemuxer: Send {
     ///
     /// Returns `Ok(None)` at end of file / stream.
     fn next_packet(&mut self) -> Result<Option<(usize, Packet)>>;
+}
+
+// ── Video encoder + container muxer ──────────────────────────────────────────
+
+/// Encodes raw [`VideoFrame`]s into compressed [`EncodedPacket`]s.
+///
+/// Call [`VideoEncoder::encode`] for each frame and
+/// [`VideoEncoder::flush`] once to drain any buffered packets.
+#[cfg(feature = "encode")]
+pub trait VideoEncoder: Send {
+    /// Submit one decoded frame; returns any packets that are ready.
+    fn encode(&mut self, frame: &VideoFrame) -> Result<Vec<EncodedPacket>>;
+    /// Signal end-of-stream; drain the encoder's internal buffer.
+    fn flush(&mut self) -> Result<Vec<EncodedPacket>>;
+    /// Name of the codec this encoder produces (e.g., `"AV1"`).
+    fn codec_name(&self) -> &str;
+}
+
+/// Writes encoded packets into an output container (e.g., WebM).
+///
+/// Usage:
+/// 1. [`ContainerMuxer::write_header`] — once, before any packets.
+/// 2. [`ContainerMuxer::write_packet`] — once per encoded packet.
+/// 3. [`ContainerMuxer::write_trailer`] — once, to finalise the file.
+#[cfg(feature = "encode")]
+pub trait ContainerMuxer: Send {
+    fn write_header(&mut self) -> Result<()>;
+    fn write_packet(&mut self, packet: &EncodedPacket) -> Result<()>;
+    fn write_trailer(&mut self) -> Result<()>;
 }
