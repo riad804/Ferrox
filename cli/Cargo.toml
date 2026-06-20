@@ -1,0 +1,15 @@
+[package]
+name = "mediaforge"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "mediaforge"
+path = "src/main.rs"
+
+[dependencies]
+mediaforge-core = { path = "../core" }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
