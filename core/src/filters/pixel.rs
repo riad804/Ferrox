@@ -251,7 +251,7 @@ impl Filter for CropFilter {
                 self.x, self.y, self.width, self.height, frame.width, frame.height
             )));
         }
-        use image::{DynamicImage, GenericImageView, RgbImage, RgbaImage};
+        use image::{DynamicImage, RgbImage, RgbaImage};
         let (w, h) = (frame.width, frame.height);
         let cropped = match frame.format {
             PixelFormat::Rgb8 => {

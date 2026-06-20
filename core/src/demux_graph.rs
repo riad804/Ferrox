@@ -155,6 +155,102 @@ fn extract_with_demuxer<D: ContainerDemuxer>(
     Ok(result)
 }
 
+/// Like [`extract_frames`] but skips the first `start` decodable frames before
+/// writing, then writes up to `count` frames.
+#[instrument(skip_all, fields(input = %input.display(), start, count))]
+pub fn extract_frames_range(
+    input: &Path,
+    output_pattern: &str,
+    start: usize,
+    count: usize,
+) -> Result<ExtractResult> {
+    let kind = ContainerKind::from_path(input).ok_or_else(|| {
+        Error::UnsupportedFormat(format!(
+            "unrecognised container extension: '{}'",
+            input.display()
+        ))
+    })?;
+
+    match kind {
+        ContainerKind::Mp4 => {
+            let file = File::open(input)?;
+            let size = file.metadata()?.len();
+            let demuxer = Mp4Demuxer::open(file, size)?;
+            extract_range_with_demuxer(demuxer, output_pattern, start, count)
+        }
+        ContainerKind::Mkv => {
+            let file = File::open(input)?;
+            let demuxer = WebmDemuxer::open(file)?;
+            extract_range_with_demuxer(demuxer, output_pattern, start, count)
+        }
+        ContainerKind::Ivf => {
+            let file = File::open(input)?;
+            let demuxer = IvfDemuxer::open(file)?;
+            extract_range_with_demuxer(demuxer, output_pattern, start, count)
+        }
+    }
+}
+
+fn extract_range_with_demuxer<D: ContainerDemuxer>(
+    mut demuxer: D,
+    output_pattern: &str,
+    start: usize,
+    count: usize,
+) -> Result<ExtractResult> {
+    let streams = demuxer.streams().to_vec();
+    let stream_count = streams.len();
+
+    let video_stream = streams.iter().find(|s| s.is_video());
+    let Some(vs) = video_stream else {
+        return Err(Error::Video("no video stream found in container".into()));
+    };
+
+    let video_stream_idx = vs.index;
+    let codec = vs.codec.clone();
+
+    match &codec {
+        CodecId::Vp8 => {}
+        other => {
+            return Err(Error::Video(format!(
+                "no pixel decoder available for {other}; only VP8 decoding is implemented."
+            )));
+        }
+    }
+
+    let mut decoder = Vp8Decoder;
+    let mut result = ExtractResult { stream_count, ..Default::default() };
+    let mut decoded = 0usize; // total successfully decoded frames
+    let mut written = 0usize; // frames written to disk
+
+    let total_needed = start + count;
+
+    loop {
+        if written >= count { break; }
+        if count > 0 && decoded >= total_needed { break; }
+
+        let Some((stream_idx, packet)) = demuxer.next_packet()? else { break };
+        if stream_idx != video_stream_idx { continue; }
+
+        match decoder.decode_packet(&packet) {
+            Ok(vf) => {
+                if decoded >= start {
+                    let path = format_output_path(output_pattern, decoded - start);
+                    write_video_frame_as_png(&vf, &path)?;
+                    result.frame_paths.push(path);
+                    written += 1;
+                }
+                decoded += 1;
+            }
+            Err(e) => {
+                warn!(pts = packet.pts, err = %e, "frame skipped");
+                result.skipped += 1;
+            }
+        }
+    }
+
+    Ok(result)
+}
+
 /// Demux audio from a video container and write it to `output` (WAV only for now).
 #[instrument(skip_all, fields(input = %input.display(), output = %output.display()))]
 pub fn extract_audio(input: &Path, output: &Path) -> Result<()> {
