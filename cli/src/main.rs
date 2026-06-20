@@ -2,16 +2,16 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use tracing::info;
-use mediaforge_core::{
+use ferrox_core::{
     filters::ResizeFilter,
     Graph,
 };
 
 #[derive(Parser)]
-#[command(name = "mediaforge", version, about = "Graph-based media processing pipeline")]
+#[command(name = "ferrox", version, about = "Graph-based media processing pipeline")]
 struct Cli {
     /// Logging verbosity: off, error, warn, info, debug, trace.
-    #[arg(long, global = true, default_value = "info", env = "MEDIAFORGE_LOG")]
+    #[arg(long, global = true, default_value = "info", env = "FERROX_LOG")]
     log_level: String,
 
     #[command(subcommand)]

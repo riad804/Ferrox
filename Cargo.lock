@@ -184,6 +184,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrox"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ferrox-core",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "ferrox-core"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "tempfile",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,27 +283,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
  "regex-automata",
-]
-
-[[package]]
-name = "mediaforge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "mediaforge-core",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "mediaforge-core"
-version = "0.1.0"
-dependencies = [
- "image",
- "tempfile",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

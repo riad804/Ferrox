@@ -1,14 +1,14 @@
 [package]
-name = "mediaforge"
+name = "ferrox"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "mediaforge"
+name = "ferrox"
 path = "src/main.rs"
 
 [dependencies]
-mediaforge-core = { path = "../core" }
+ferrox-core = { path = "../core" }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
 tracing = "0.1"

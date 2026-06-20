@@ -1,6 +1,6 @@
 use std::io::Cursor;
 use image::{codecs::jpeg::JpegDecoder, ImageDecoder};
-use mediaforge_core::{filters::ResizeFilter, Graph};
+use ferrox_core::{filters::ResizeFilter, Graph};
 use tempfile::NamedTempFile;
 
 /// Build a minimal valid 64×48 RGB8 PNG in memory without any file I/O.
