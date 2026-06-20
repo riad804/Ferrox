@@ -3,6 +3,12 @@ name = "ferrox-core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["image-codecs", "audio-codecs", "video-codecs"]
+image-codecs = []
+audio-codecs = []
+video-codecs = ["dep:mp4", "dep:matroska-demuxer", "dep:oxideav-vp8"]
+
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 thiserror = "2"
@@ -13,7 +19,14 @@ claxon = "0.4"
 lewton = "0.10"
 rubato = "0.15"
 
+# Video container demuxers + VP8 decoder (optional, enabled by `video-codecs`)
+mp4 = { version = "0.14", optional = true }
+matroska-demuxer = { version = "0.7", optional = true }
+oxideav-vp8 = { version = "0.2", optional = true }
+
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tempfile = "3"
 hound = "3"
+# Used in video_pipeline tests to generate VP8 fixture frames
+oxideav-vp8 = "0.2"

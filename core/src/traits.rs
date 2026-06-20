@@ -1,5 +1,7 @@
 use std::io::{Read, Write};
 use crate::{Frame, Result, audio::AudioFrame, media::MediaFrame};
+#[cfg(feature = "video-codecs")]
+use crate::video::{Packet, StreamInfo, VideoFrame};
 
 /// Identifies a media format.
 pub trait Format: Send + Sync {
@@ -91,4 +93,30 @@ pub trait AudioFilter: Send + Sync {
 /// Transforms any [`MediaFrame`] — used by the unified graph.
 pub trait MediaFilter: Send + Sync {
     fn process_media(&self, frame: MediaFrame) -> Result<MediaFrame>;
+}
+
+// ── Video codecs ──────────────────────────────────────────────────────────────
+
+/// Decodes a single compressed [`Packet`] into a [`VideoFrame`].
+///
+/// Stateless decoders (keyframe-only) can be `Send + Sync`; stateful
+/// (inter-frame) decoders hold reference frames internally.
+#[cfg(feature = "video-codecs")]
+pub trait VideoDecoder: Send {
+    fn decode_packet(&mut self, packet: &Packet) -> Result<VideoFrame>;
+}
+
+/// Demuxes a container into stream metadata and raw packets.
+///
+/// The demuxer takes ownership of a `Read + Seek` source; callers pull
+/// packets via [`ContainerDemuxer::next_packet`] until `None` is returned.
+#[cfg(feature = "video-codecs")]
+pub trait ContainerDemuxer: Send {
+    /// Return metadata for every stream in the container.
+    fn streams(&self) -> &[StreamInfo];
+
+    /// Pull the next packet from any stream.
+    ///
+    /// Returns `Ok(None)` at end of file / stream.
+    fn next_packet(&mut self) -> Result<Option<(usize, Packet)>>;
 }

@@ -132,6 +132,29 @@ impl AudioGraph {
         info!("audio pipeline complete");
         Ok(())
     }
+
+    /// Apply all filters to `frame` and encode the result to `output`.
+    ///
+    /// Useful when the caller already holds a decoded [`AudioFrame`] and
+    /// only wants the filter + encode step (e.g. after demuxing audio from
+    /// a video container).
+    pub fn run_frame(&self, frame: &AudioFrame, output: &Path) -> Result<()> {
+        let out_ext = ext_of(output)?;
+        let encoder = self.encoders.get(out_ext).ok_or_else(|| {
+            Error::UnsupportedFormat(format!("no audio encoder for extension '{out_ext}'"))
+        })?;
+
+        let mut frame = frame.clone();
+        for (i, filter) in self.filters.iter().enumerate() {
+            debug!(filter_index = i, "applying audio filter");
+            frame = filter.process_audio(frame)?;
+        }
+
+        let out_file = File::create(output)?;
+        let mut writer = BufWriter::new(out_file);
+        encoder.encode_audio_dyn(&frame, &mut writer)?;
+        Ok(())
+    }
 }
 
 impl Default for AudioGraph {

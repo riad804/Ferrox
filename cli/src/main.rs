@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use tracing::info;
 use ferrox_core::{
+    demux_graph,
     filters::{ResampleFilter, ResizeFilter, VolumeFilter},
     AudioGraph, Graph,
 };
@@ -70,6 +71,35 @@ enum Command {
         /// Target sample rate in Hz (e.g. 44100, 48000).
         #[arg(short = 'r', long)]
         rate: u32,
+    },
+
+    /// Extract video frames from a container as PNG images.
+    ///
+    /// Example: ferrox video-extract-frames input.webm frame_%03d.png --count 10
+    VideoExtractFrames {
+        /// Input video file (WebM/MKV with VP8, or MP4).
+        input: PathBuf,
+        /// Output path pattern with a printf-style %d placeholder, e.g. frame_%03d.png.
+        output_pattern: String,
+        /// Maximum number of frames to extract.
+        #[arg(short, long, default_value = "10")]
+        count: usize,
+    },
+
+    /// Extract audio from a video container to WAV.
+    ///
+    /// Example: ferrox video-extract-audio input.webm audio.wav
+    VideoExtractAudio {
+        /// Input video file (WebM/MKV with PCM audio).
+        input: PathBuf,
+        /// Output WAV file.
+        output: PathBuf,
+    },
+
+    /// Print stream metadata for a video/audio container file.
+    VideoInfo {
+        /// Input container file (WebM, MKV, or MP4).
+        input: PathBuf,
     },
 }
 
@@ -141,6 +171,73 @@ fn main() -> Result<()> {
                     )
                 })?;
             info!("resampled to {rate}Hz: {} → {}", input.display(), output.display());
+        }
+
+        Command::VideoExtractFrames { input, output_pattern, count } => {
+            let result = demux_graph::extract_frames(&input, &output_pattern, count)
+                .with_context(|| {
+                    format!(
+                        "extracting {count} frame(s) from '{}' → '{output_pattern}'",
+                        input.display()
+                    )
+                })?;
+            info!(
+                "extracted {} frame(s) ({} skipped) from {}",
+                result.frame_paths.len(),
+                result.skipped,
+                input.display()
+            );
+            for p in &result.frame_paths {
+                println!("{}", p.display());
+            }
+        }
+
+        Command::VideoExtractAudio { input, output } => {
+            demux_graph::extract_audio(&input, &output)
+                .with_context(|| {
+                    format!(
+                        "extracting audio from '{}' → '{}'",
+                        input.display(), output.display()
+                    )
+                })?;
+            info!("extracted audio: {} → {}", input.display(), output.display());
+        }
+
+        Command::VideoInfo { input } => {
+            use ferrox_core::{codecs::{Mp4Demuxer, WebmDemuxer}, demux_graph::ContainerKind, traits::ContainerDemuxer};
+            use std::fs::File;
+            use ferrox_core::IvfDemuxer;
+            let kind = ContainerKind::from_path(&input)
+                .ok_or_else(|| anyhow::anyhow!("unrecognised container extension"))?;
+            let streams: Vec<_> = match kind {
+                ContainerKind::Mp4 => {
+                    let f = File::open(&input)?;
+                    let size = f.metadata()?.len();
+                    Mp4Demuxer::open(f, size)?.streams().to_vec()
+                }
+                ContainerKind::Mkv => {
+                    let f = File::open(&input)?;
+                    WebmDemuxer::open(f)?.streams().to_vec()
+                }
+                ContainerKind::Ivf => {
+                    let f = File::open(&input)?;
+                    IvfDemuxer::open(f)?.streams().to_vec()
+                }
+            };
+            println!("Streams in '{}':", input.display());
+            for s in &streams {
+                println!(
+                    "  [{}] {:?} codec={} {}",
+                    s.index, s.kind, s.codec,
+                    if s.is_video() {
+                        format!("{}×{} {:.2}fps", s.width, s.height, s.frame_rate)
+                    } else if s.is_audio() {
+                        format!("{}Hz {}ch", s.sample_rate, s.channels)
+                    } else {
+                        String::new()
+                    }
+                );
+            }
         }
     }
 

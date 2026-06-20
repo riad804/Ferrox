@@ -17,6 +17,9 @@ pub enum Error {
     #[error("audio codec error: {0}")]
     Audio(String),
 
+    #[error("video error: {0}")]
+    Video(String),
+
     #[error("filter error: {0}")]
     Filter(String),
 
