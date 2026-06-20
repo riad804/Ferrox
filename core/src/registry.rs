@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::{
-    codecs::{JpegDecoder, JpegEncoder, PngDecoder, PngEncoder},
-    traits::{DynDecoder, DynEncoder},
+    codecs::{FlacDecoder, JpegDecoder, JpegEncoder, Mp3Decoder, PngDecoder, PngEncoder, VorbisDecoder, WavDecoder, WavEncoder},
+    traits::{DynAudioDecoder, DynAudioEncoder, DynDecoder, DynEncoder},
 };
 
 pub struct DecoderRegistry(HashMap<&'static str, Box<dyn DynDecoder>>);
@@ -61,6 +61,52 @@ macro_rules! register_decoder {
     ($registry:expr, $( $ext:literal => $decoder:expr ),+ $(,)?) => {
         $( $registry.register($ext, Box::new($decoder)); )+
     };
+}
+
+pub struct AudioDecoderRegistry(HashMap<&'static str, Box<dyn DynAudioDecoder>>);
+pub struct AudioEncoderRegistry(HashMap<&'static str, Box<dyn DynAudioEncoder>>);
+
+impl AudioDecoderRegistry {
+    pub fn new() -> Self { Self(HashMap::new()) }
+
+    pub fn register(&mut self, ext: &'static str, decoder: Box<dyn DynAudioDecoder>) {
+        self.0.insert(ext, decoder);
+    }
+
+    pub fn get(&self, ext: &str) -> Option<&dyn DynAudioDecoder> {
+        self.0.get(ext).map(|d| d.as_ref())
+    }
+}
+
+impl Default for AudioDecoderRegistry {
+    fn default() -> Self {
+        let mut r = Self::new();
+        r.register("wav", Box::new(WavDecoder));
+        r.register("mp3", Box::new(Mp3Decoder));
+        r.register("flac", Box::new(FlacDecoder));
+        r.register("ogg", Box::new(VorbisDecoder));
+        r
+    }
+}
+
+impl AudioEncoderRegistry {
+    pub fn new() -> Self { Self(HashMap::new()) }
+
+    pub fn register(&mut self, ext: &'static str, encoder: Box<dyn DynAudioEncoder>) {
+        self.0.insert(ext, encoder);
+    }
+
+    pub fn get(&self, ext: &str) -> Option<&dyn DynAudioEncoder> {
+        self.0.get(ext).map(|e| e.as_ref())
+    }
+}
+
+impl Default for AudioEncoderRegistry {
+    fn default() -> Self {
+        let mut r = Self::new();
+        r.register("wav", Box::new(WavEncoder));
+        r
+    }
 }
 
 /// Register an encoder for one or more extensions.

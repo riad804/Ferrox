@@ -14,6 +14,9 @@ pub enum Error {
     #[error("unsupported pixel format for this codec")]
     UnsupportedPixelFormat,
 
+    #[error("audio codec error: {0}")]
+    Audio(String),
+
     #[error("filter error: {0}")]
     Filter(String),
 

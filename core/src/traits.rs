@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use crate::{Frame, Result};
+use crate::{Frame, Result, audio::AudioFrame, media::MediaFrame};
 
 /// Identifies a media format.
 pub trait Format: Send + Sync {
@@ -8,25 +8,24 @@ pub trait Format: Send + Sync {
     fn mime_type(&self) -> &str;
 }
 
-/// Generic (statically-dispatched) decoder — prefer this in concrete code.
+// ── Image codecs ─────────────────────────────────────────────────────────────
+
+/// Generic (statically-dispatched) image decoder — prefer this in concrete code.
 pub trait Decoder: Send + Sync {
     fn decode<R: Read>(&self, reader: R) -> Result<Frame>;
 }
 
-/// Generic (statically-dispatched) encoder — prefer this in concrete code.
+/// Generic (statically-dispatched) image encoder — prefer this in concrete code.
 pub trait Encoder: Send + Sync {
     fn encode<W: Write>(&self, frame: &Frame, writer: W) -> Result<()>;
 }
 
-/// Object-safe decoder used by the registry and graph.
-///
-/// Implementations are provided automatically via the blanket impl below for
-/// any type that implements [`Decoder`].
+/// Object-safe image decoder used by the registry and graph.
 pub trait DynDecoder: Send + Sync {
     fn decode_dyn(&self, reader: &mut dyn Read) -> Result<Frame>;
 }
 
-/// Object-safe encoder used by the registry and graph.
+/// Object-safe image encoder used by the registry and graph.
 pub trait DynEncoder: Send + Sync {
     fn encode_dyn(&self, frame: &Frame, writer: &mut dyn Write) -> Result<()>;
 }
@@ -43,7 +42,53 @@ impl<T: Encoder> DynEncoder for T {
     }
 }
 
-/// Transforms a [`Frame`], returning a (possibly new) frame.
+// ── Audio codecs ─────────────────────────────────────────────────────────────
+
+/// Generic (statically-dispatched) audio decoder.
+pub trait AudioDecoder: Send + Sync {
+    fn decode_audio<R: Read>(&self, reader: R) -> Result<AudioFrame>;
+}
+
+/// Generic (statically-dispatched) audio encoder.
+pub trait AudioEncoder: Send + Sync {
+    fn encode_audio<W: Write>(&self, frame: &AudioFrame, writer: W) -> Result<()>;
+}
+
+/// Object-safe audio decoder used by the registry and graph.
+pub trait DynAudioDecoder: Send + Sync {
+    fn decode_audio_dyn(&self, reader: &mut dyn Read) -> Result<AudioFrame>;
+}
+
+/// Object-safe audio encoder used by the registry and graph.
+pub trait DynAudioEncoder: Send + Sync {
+    fn encode_audio_dyn(&self, frame: &AudioFrame, writer: &mut dyn Write) -> Result<()>;
+}
+
+impl<T: AudioDecoder> DynAudioDecoder for T {
+    fn decode_audio_dyn(&self, reader: &mut dyn Read) -> Result<AudioFrame> {
+        self.decode_audio(reader)
+    }
+}
+
+impl<T: AudioEncoder> DynAudioEncoder for T {
+    fn encode_audio_dyn(&self, frame: &AudioFrame, writer: &mut dyn Write) -> Result<()> {
+        self.encode_audio(frame, writer)
+    }
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+
+/// Transforms an image [`Frame`], returning a (possibly new) frame.
 pub trait Filter: Send + Sync {
     fn process(&self, frame: Frame) -> Result<Frame>;
+}
+
+/// Transforms an [`AudioFrame`], returning a (possibly new) audio frame.
+pub trait AudioFilter: Send + Sync {
+    fn process_audio(&self, frame: AudioFrame) -> Result<AudioFrame>;
+}
+
+/// Transforms any [`MediaFrame`] — used by the unified graph.
+pub trait MediaFilter: Send + Sync {
+    fn process_media(&self, frame: MediaFrame) -> Result<MediaFrame>;
 }
