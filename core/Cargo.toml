@@ -4,11 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["image-codecs", "audio-codecs", "video-codecs", "encode"]
+default = ["image-codecs", "audio-codecs", "video-codecs", "encode", "filters-extra", "gif-support"]
 image-codecs = []
 audio-codecs = []
 video-codecs = ["dep:mp4", "dep:matroska-demuxer", "dep:oxideav-vp8"]
 encode = ["video-codecs", "dep:rav1e", "dep:oxideav-mkv", "dep:oxideav-core"]
+filters-extra = ["dep:ab_glyph"]
+gif-support = ["dep:gif", "dep:color_quant"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
@@ -30,9 +32,18 @@ rav1e = { version = "0.8", optional = true }
 oxideav-mkv = { version = "0.0.9", optional = true }
 oxideav-core = { version = "0.1", optional = true }
 
+# Extra filters
+ab_glyph = { version = "0.2", optional = true }
+
+# GIF support
+gif = { version = "0.13", optional = true }
+color_quant = { version = "1.1", optional = true }
+
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tempfile = "3"
 hound = "3"
 # Used in video_pipeline tests to generate VP8 fixture frames
 oxideav-vp8 = "0.2"
+# Used in gif integration tests
+gif = "0.13"

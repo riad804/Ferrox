@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod codecs;
 pub mod error;
+pub mod filter_graph;
 pub mod filters;
 pub mod formats;
 pub mod frame;
@@ -14,6 +15,16 @@ pub mod demux_graph;
 
 pub use audio::{AudioFormat, AudioFrame};
 pub use error::{Error, Result};
+pub use filter_graph::{FilterGraph, FilterPlugin};
+pub use filters::{
+    BlurFilter, BrightnessFilter, ContrastFilter, CropFilter,
+    FlipAxis, FlipFilter, GrayscaleFilter, NegateFilter,
+    OverlayFilter, PadFilter, ResampleFilter, ResizeAlgorithm,
+    ResizeFilter, RotateFilter, Rotation, SaturationFilter,
+    ThumbnailFilter, VolumeFilter,
+};
+#[cfg(feature = "filters-extra")]
+pub use filters::{TextColor, DrawTextFilter};
 pub use frame::{Frame, PixelFormat};
 pub use graph::{AudioGraph, Graph};
 pub use media::{MediaFrame, MediaType};
@@ -36,3 +47,5 @@ pub use traits::{ContainerMuxer, VideoEncoder};
 pub use video::EncodedPacket;
 #[cfg(feature = "encode")]
 pub mod transcode_graph;
+#[cfg(feature = "gif-support")]
+pub use codecs::gif::{decode_gif, encode_gif, GifEncodeOptions, GifFrame};

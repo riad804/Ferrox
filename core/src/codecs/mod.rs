@@ -1,6 +1,8 @@
 pub mod audio;
 pub mod jpeg;
 pub mod png;
+#[cfg(feature = "gif-support")]
+pub mod gif;
 #[cfg(feature = "video-codecs")]
 pub mod video;
 

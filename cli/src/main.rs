@@ -5,6 +5,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use tracing::info;
 use ferrox_core::{
     demux_graph,
+    filter_graph::FilterGraph,
     filters::{ResampleFilter, ResizeFilter, VolumeFilter},
     transcode_graph::{TranscodeOptions, VideoCodecChoice},
     AudioGraph, Graph,
@@ -102,6 +103,54 @@ enum Command {
     VideoInfo {
         /// Input container file (WebM, MKV, or MP4).
         input: PathBuf,
+    },
+
+    /// Apply a filtergraph expression to an image (similar to -filter_complex).
+    ///
+    /// Example: ferrox filter-apply input.png output.png "blur=2.0,grayscale"
+    ///
+    /// Supported tokens: blur=<sigma>, grayscale, negate, scale=<w>:<h>,
+    /// brightness=<delta>, contrast=<factor>, saturation=<factor>.
+    FilterApply {
+        /// Input image file (PNG/JPEG).
+        input: PathBuf,
+        /// Output image file.
+        output: PathBuf,
+        /// Filtergraph expression (comma-separated filter tokens).
+        #[arg(short = 'f', long = "filter-complex")]
+        filter_complex: String,
+    },
+
+    /// Decode an animated GIF into individual PNG frames.
+    ///
+    /// Example: ferrox gif-decode animation.gif frames/frame_%03d.png
+    GifDecode {
+        /// Input GIF file.
+        input: PathBuf,
+        /// Output path pattern with printf-style %d, e.g. frame_%03d.png.
+        output_pattern: String,
+        /// Maximum frames to extract (0 = all).
+        #[arg(long, default_value = "0")]
+        max_frames: usize,
+    },
+
+    /// Encode PNG frames into an animated GIF.
+    ///
+    /// Frames are read in the order provided.
+    ///
+    /// Example: ferrox gif-encode frame_001.png frame_002.png -o out.gif --delay 10
+    GifEncode {
+        /// Input PNG frames (one or more).
+        inputs: Vec<PathBuf>,
+        /// Output GIF file.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Frame delay in centiseconds (default 10 = 100 ms per frame).
+        #[arg(long, default_value = "10")]
+        delay: u16,
+        /// Palette size (2–256; larger = better quality but bigger file).
+        #[arg(long, default_value = "256")]
+        palette: usize,
     },
 
     /// Transcode a video file (decode → filter → encode → mux).
@@ -294,6 +343,101 @@ fn main() -> Result<()> {
                 input.display(), output.display(),
                 result.frames_encoded, result.frames_copied
             );
+        }
+
+        Command::FilterApply { input, output, filter_complex } => {
+            use ferrox_core::codecs::{JpegDecoder, JpegEncoder, PngDecoder, PngEncoder};
+            use ferrox_core::traits::{DynDecoder, DynEncoder};
+            use std::fs::File;
+            use std::io::BufWriter;
+
+            let in_ext = input.extension().and_then(|e| e.to_str())
+                .ok_or_else(|| anyhow::anyhow!("no extension on input file"))?
+                .to_ascii_lowercase();
+            let out_ext = output.extension().and_then(|e| e.to_str())
+                .ok_or_else(|| anyhow::anyhow!("no extension on output file"))?
+                .to_ascii_lowercase();
+
+            let mut in_file = std::io::BufReader::new(File::open(&input)?);
+            let frame = match in_ext.as_str() {
+                "png"  => PngDecoder.decode_dyn(&mut in_file)?,
+                "jpg" | "jpeg" => JpegDecoder.decode_dyn(&mut in_file)?,
+                other  => anyhow::bail!("unsupported input format '{other}'"),
+            };
+
+            let out_frame = FilterGraph::parse_and_run(frame, &filter_complex)
+                .with_context(|| format!("applying filtergraph '{filter_complex}'"))?;
+
+            let out_file = BufWriter::new(File::create(&output)?);
+            match out_ext.as_str() {
+                "png"  => PngEncoder.encode_dyn(&out_frame, &mut { out_file })?,
+                "jpg" | "jpeg" => JpegEncoder::default().encode_dyn(&out_frame, &mut { out_file })?,
+                other  => anyhow::bail!("unsupported output format '{other}'"),
+            }
+            info!("filter-apply complete: {} → {}", input.display(), output.display());
+            println!("Applied '{}': {} → {}", filter_complex, input.display(), output.display());
+        }
+
+        Command::GifDecode { input, output_pattern, max_frames } => {
+            use ferrox_core::decode_gif;
+            use ferrox_core::codecs::PngEncoder;
+            use ferrox_core::traits::DynEncoder;
+            use std::fs::File;
+            use std::io::BufWriter;
+
+            let data = std::fs::read(&input)
+                .with_context(|| format!("reading '{}'", input.display()))?;
+            let frames = decode_gif(std::io::Cursor::new(data))
+                .with_context(|| format!("decoding GIF '{}'", input.display()))?;
+
+            let limit = if max_frames == 0 { frames.len() } else { max_frames.min(frames.len()) };
+            let mut paths: Vec<String> = Vec::new();
+
+            for (i, gif_frame) in frames[..limit].iter().enumerate() {
+                let path = output_pattern.replace("%03d", &format!("{i:03}"))
+                    .replace("%d", &i.to_string());
+                let f = BufWriter::new(File::create(&path)
+                    .with_context(|| format!("creating '{path}'"))?);
+                PngEncoder.encode_dyn(&gif_frame.frame, &mut { f })?;
+                paths.push(path);
+            }
+
+            info!("gif-decode: extracted {} frames from {}", limit, input.display());
+            for p in &paths { println!("{p}"); }
+        }
+
+        Command::GifEncode { inputs, output, delay, palette } => {
+            use ferrox_core::{encode_gif, GifEncodeOptions, GifFrame};
+            use ferrox_core::codecs::PngDecoder;
+            use ferrox_core::traits::DynDecoder;
+            use std::fs::File;
+            use std::io::BufWriter;
+
+            let mut gif_frames: Vec<GifFrame> = Vec::new();
+            for path in &inputs {
+                let ext = path.extension().and_then(|e| e.to_str())
+                    .unwrap_or("").to_ascii_lowercase();
+                let mut f = std::io::BufReader::new(File::open(path)
+                    .with_context(|| format!("opening '{}'", path.display()))?);
+                let frame = match ext.as_str() {
+                    "png" => PngDecoder.decode_dyn(&mut f)?,
+                    other => anyhow::bail!("gif-encode: unsupported input format '{other}'"),
+                };
+                gif_frames.push(GifFrame { frame, delay_cs: delay });
+            }
+
+            let opts = GifEncodeOptions {
+                palette_size: palette,
+                default_delay_cs: delay,
+                ..Default::default()
+            };
+            let out_file = BufWriter::new(File::create(&output)
+                .with_context(|| format!("creating '{}'", output.display()))?);
+            encode_gif(out_file, &gif_frames, &opts)
+                .with_context(|| format!("encoding GIF '{}'", output.display()))?;
+
+            info!("gif-encode: wrote {} frames → {}", gif_frames.len(), output.display());
+            println!("Encoded {} frames → {}", gif_frames.len(), output.display());
         }
 
         Command::VideoInfo { input } => {
