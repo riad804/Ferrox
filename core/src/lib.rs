@@ -51,10 +51,15 @@ pub use codecs::video::{IvfDemuxer, Mp4Demuxer, Vp8Decoder, WebmDemuxer};
 pub use codecs::video::Vp9Decoder;
 #[cfg(feature = "h264")]
 pub use codecs::video::H264Decoder;
+#[cfg(feature = "h264")]
+pub use codecs::video::h264::{H264OutputMode, H264Profile, detect_h264_profile};
 #[cfg(feature = "video-codecs")]
 pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]
-pub use demux_graph::{extract_audio, extract_frames, yuv420p_to_rgb8, ContainerKind, ExtractResult};
+pub use demux_graph::{
+    extract_audio, extract_frames, ContainerKind, ExtractResult,
+    any_yuv_to_rgb8, yuv420p_to_rgb8, yuv420p_hdr_to_rgb8, yuv422p_to_rgb8, yuv444p_to_rgb8,
+};
 #[cfg(feature = "encode")]
 pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "encode")]

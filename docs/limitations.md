@@ -33,7 +33,18 @@ explicitly:
 ferrox-core = { path = "…", features = ["vp9"] }
 ```
 
-**Limitation**: 8-bit YUV420 only. 10/12-bit HDR VP9 profiles return an error.
+**Supported formats**:
+
+| Bit depth | Layout | ferrox PixelFormat |
+|-----------|--------|--------------------|
+| 8-bit  | YUV 4:2:0 | `Yuv420p`   |
+| 10-bit | YUV 4:2:0 | `Yuv420p10` |
+| 12-bit | YUV 4:2:0 | `Yuv420p12` |
+| 8-bit  | YUV 4:2:2 | `Yuv422p`   |
+| 8-bit  | YUV 4:4:4 | `Yuv444p`   |
+
+10/12-bit samples are stored as little-endian u16 values.  Use
+`yuv420p_hdr_to_rgb8()` to tone-map HDR frames to 8-bit RGB for display.
 
 ---
 
@@ -62,8 +73,11 @@ H.264. Enable explicitly:
 ferrox-core = { path = "…", features = ["h264"] }
 ```
 
-**Limitation**: OpenH264 supports Baseline and Main profiles; High-profile
-features (8×8 DCT, B-frames in some modes) may not decode correctly.
+**Supported profiles**: Baseline, Main, High, High 10, High 4:2:2, High 4:4:4.
+Profile detection via `detect_h264_profile()` parses the SPS NAL unit.
+
+**Output modes**: `H264OutputMode::Rgb8` (default) or `H264OutputMode::Yuv420p`
+for pipelines that need raw YUV data (e.g. AV1 re-encoding without RGB round-trip).
 
 ---
 

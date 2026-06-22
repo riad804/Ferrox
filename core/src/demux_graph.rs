@@ -428,13 +428,9 @@ fn format_output_path(pattern: &str, index: usize) -> std::path::PathBuf {
     std::path::PathBuf::from(out)
 }
 
-/// Write a decoded [`VideoFrame`] as a PNG. Handles Rgb8 and Yuv420p frames.
+/// Write a decoded [`VideoFrame`] as a PNG. Handles all supported pixel formats.
 fn write_video_frame_as_png(vf: &VideoFrame, path: &Path) -> Result<()> {
-    let rgb = match vf.frame.format {
-        PixelFormat::Rgb8   => vf.frame.clone(),
-        PixelFormat::Yuv420p => yuv420p_to_rgb8(&vf.frame)?,
-        fmt => return Err(Error::Filter(format!("unsupported pixel format for PNG output: {fmt:?}"))),
-    };
+    let rgb = any_yuv_to_rgb8(&vf.frame)?;
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
     PngEncoder::new(&mut writer)
@@ -443,16 +439,30 @@ fn write_video_frame_as_png(vf: &VideoFrame, path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// BT.601 full-range YUV420p → packed RGB8.
+/// Convert any supported YUV or RGB frame to RGB8.
+///
+/// Accepts: `Rgb8`, `Yuv420p`, `Yuv420p10`, `Yuv420p12`, `Yuv422p`, `Yuv444p`.
+pub fn any_yuv_to_rgb8(frame: &Frame) -> Result<Frame> {
+    match frame.format {
+        PixelFormat::Rgb8    => Ok(frame.clone()),
+        PixelFormat::Yuv420p => yuv420p_to_rgb8(frame),
+        PixelFormat::Yuv420p10 | PixelFormat::Yuv420p12 => yuv420p_hdr_to_rgb8(frame),
+        PixelFormat::Yuv422p => yuv422p_to_rgb8(frame),
+        PixelFormat::Yuv444p => yuv444p_to_rgb8(frame),
+        fmt => Err(Error::Filter(format!("unsupported pixel format for RGB conversion: {fmt:?}"))),
+    }
+}
+
+/// BT.601 full-range YUV420p (8-bit) → packed RGB8.
 pub fn yuv420p_to_rgb8(frame: &Frame) -> Result<Frame> {
     if frame.format != PixelFormat::Yuv420p {
         return Err(Error::Filter("yuv420p_to_rgb8 expects Yuv420p input".into()));
     }
     let w = frame.width as usize;
     let h = frame.height as usize;
-    let y_plane = &frame.data[..w * h];
     let uv_w = (w + 1) / 2;
     let uv_h = (h + 1) / 2;
+    let y_plane = &frame.data[..w * h];
     let u_plane = &frame.data[w * h..w * h + uv_w * uv_h];
     let v_plane = &frame.data[w * h + uv_w * uv_h..];
 
@@ -462,14 +472,108 @@ pub fn yuv420p_to_rgb8(frame: &Frame) -> Result<Frame> {
             let y = y_plane[row * w + col] as f32;
             let u = u_plane[(row / 2) * uv_w + col / 2] as f32 - 128.0;
             let v = v_plane[(row / 2) * uv_w + col / 2] as f32 - 128.0;
-            let r = (y + 1.402 * v).clamp(0.0, 255.0) as u8;
-            let g = (y - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
-            let b = (y + 1.772 * u).clamp(0.0, 255.0) as u8;
-            let off = (row * w + col) * 3;
-            rgb[off] = r;
-            rgb[off + 1] = g;
-            rgb[off + 2] = b;
+            yuv_to_rgb_pixel(&mut rgb, row * w + col, y, u, v);
         }
     }
     Ok(Frame::new(frame.width, frame.height, PixelFormat::Rgb8, rgb))
+}
+
+/// BT.2020 10/12-bit YUV420p → 8-bit RGB8 (tone-mapped by bit-shift).
+pub fn yuv420p_hdr_to_rgb8(frame: &Frame) -> Result<Frame> {
+    let depth = match frame.format {
+        PixelFormat::Yuv420p10 => 10u32,
+        PixelFormat::Yuv420p12 => 12u32,
+        _ => return Err(Error::Filter("yuv420p_hdr_to_rgb8 expects Yuv420p10/12".into())),
+    };
+    let shift = depth - 8; // shift down to 8-bit range
+    let bias  = (1u16 << (depth - 1)) as f32; // 512 for 10-bit, 2048 for 12-bit
+
+    let w = frame.width as usize;
+    let h = frame.height as usize;
+    let uv_w = (w + 1) / 2;
+    let uv_h = (h + 1) / 2;
+
+    // Samples are little-endian u16.
+    let read_u16 = |data: &[u8], idx: usize| -> f32 {
+        let b0 = data[idx * 2] as u16;
+        let b1 = data[idx * 2 + 1] as u16;
+        ((b0 | (b1 << 8)) >> shift) as f32
+    };
+
+    let y_end  = w * h * 2;
+    let u_end  = y_end + uv_w * uv_h * 2;
+    let y_plane = &frame.data[..y_end];
+    let u_plane = &frame.data[y_end..u_end];
+    let v_plane = &frame.data[u_end..];
+
+    let bias8 = (bias as u32 >> shift) as f32;
+
+    let mut rgb = vec![0u8; w * h * 3];
+    for row in 0..h {
+        for col in 0..w {
+            let y = read_u16(y_plane, row * w + col);
+            let u = read_u16(u_plane, (row / 2) * uv_w + col / 2) - bias8;
+            let v = read_u16(v_plane, (row / 2) * uv_w + col / 2) - bias8;
+            yuv_to_rgb_pixel(&mut rgb, row * w + col, y, u, v);
+        }
+    }
+    Ok(Frame::new(frame.width, frame.height, PixelFormat::Rgb8, rgb))
+}
+
+/// BT.601 YUV422p (8-bit) → RGB8.
+pub fn yuv422p_to_rgb8(frame: &Frame) -> Result<Frame> {
+    if frame.format != PixelFormat::Yuv422p {
+        return Err(Error::Filter("yuv422p_to_rgb8 expects Yuv422p input".into()));
+    }
+    let w = frame.width as usize;
+    let h = frame.height as usize;
+    let uv_w = (w + 1) / 2;
+    let y_plane = &frame.data[..w * h];
+    let u_plane = &frame.data[w * h..w * h + uv_w * h];
+    let v_plane = &frame.data[w * h + uv_w * h..];
+
+    let mut rgb = vec![0u8; w * h * 3];
+    for row in 0..h {
+        for col in 0..w {
+            let y = y_plane[row * w + col] as f32;
+            let u = u_plane[row * uv_w + col / 2] as f32 - 128.0;
+            let v = v_plane[row * uv_w + col / 2] as f32 - 128.0;
+            yuv_to_rgb_pixel(&mut rgb, row * w + col, y, u, v);
+        }
+    }
+    Ok(Frame::new(frame.width, frame.height, PixelFormat::Rgb8, rgb))
+}
+
+/// BT.601 YUV444p (8-bit) → RGB8.
+pub fn yuv444p_to_rgb8(frame: &Frame) -> Result<Frame> {
+    if frame.format != PixelFormat::Yuv444p {
+        return Err(Error::Filter("yuv444p_to_rgb8 expects Yuv444p input".into()));
+    }
+    let w = frame.width as usize;
+    let h = frame.height as usize;
+    let n = w * h;
+    let y_plane = &frame.data[..n];
+    let u_plane = &frame.data[n..2 * n];
+    let v_plane = &frame.data[2 * n..];
+
+    let mut rgb = vec![0u8; n * 3];
+    for i in 0..n {
+        let y = y_plane[i] as f32;
+        let u = u_plane[i] as f32 - 128.0;
+        let v = v_plane[i] as f32 - 128.0;
+        yuv_to_rgb_pixel(&mut rgb, i, y, u, v);
+    }
+    Ok(Frame::new(frame.width, frame.height, PixelFormat::Rgb8, rgb))
+}
+
+/// BT.601 YUV → RGB conversion for one pixel, written into `rgb` at `pixel_idx`.
+#[inline(always)]
+fn yuv_to_rgb_pixel(rgb: &mut [u8], pixel_idx: usize, y: f32, u: f32, v: f32) {
+    let r = (y + 1.402 * v).clamp(0.0, 255.0) as u8;
+    let g = (y - 0.344 * u - 0.714 * v).clamp(0.0, 255.0) as u8;
+    let b = (y + 1.772 * u).clamp(0.0, 255.0) as u8;
+    let off = pixel_idx * 3;
+    rgb[off]     = r;
+    rgb[off + 1] = g;
+    rgb[off + 2] = b;
 }

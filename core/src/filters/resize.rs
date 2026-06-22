@@ -79,9 +79,11 @@ impl Filter for ResizeFilter {
                     .ok_or_else(|| Error::Filter("invalid GrayA8 buffer".into()))?;
                 DynamicImage::ImageLumaA8(img).resize_exact(tw, th, filter)
             }
-            PixelFormat::Yuv420p => {
+            PixelFormat::Yuv420p
+            | PixelFormat::Yuv420p10 | PixelFormat::Yuv420p12
+            | PixelFormat::Yuv422p   | PixelFormat::Yuv444p => {
                 return Err(Error::Filter(
-                    "ResizeFilter does not support YUV420p; convert to RGB8 first".into(),
+                    "ResizeFilter does not support planar YUV formats; convert to RGB8 first".into(),
                 ))
             }
         };
