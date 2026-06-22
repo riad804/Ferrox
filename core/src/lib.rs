@@ -41,6 +41,10 @@ pub use traits::{
 pub use video::{CodecId, Packet, StreamInfo, StreamKind, VideoFrame};
 #[cfg(feature = "video-codecs")]
 pub use codecs::video::{IvfDemuxer, Mp4Demuxer, Vp8Decoder, WebmDemuxer};
+#[cfg(feature = "vp9")]
+pub use codecs::video::Vp9Decoder;
+#[cfg(feature = "h264")]
+pub use codecs::video::H264Decoder;
 #[cfg(feature = "video-codecs")]
 pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]

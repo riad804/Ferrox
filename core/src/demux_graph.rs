@@ -10,6 +10,34 @@ use crate::{
     AudioFrame, AudioGraph,
 };
 
+/// Instantiate the correct decoder for the given codec, or return an error
+/// with a clear message about which feature flag to enable.
+fn make_decoder(codec: &CodecId) -> Result<Box<dyn VideoDecoder>> {
+    match codec {
+        CodecId::Vp8 => Ok(Box::new(Vp8Decoder)),
+        #[cfg(feature = "vp9")]
+        CodecId::Vp9 => {
+            use crate::codecs::video::Vp9Decoder;
+            Ok(Box::new(Vp9Decoder::new()?))
+        }
+        #[cfg(feature = "h264")]
+        CodecId::H264 => {
+            use crate::codecs::video::H264Decoder;
+            Ok(Box::new(H264Decoder::new()?))
+        }
+        other => {
+            let hint = match other {
+                CodecId::Vp9  => " — enable the `vp9` feature flag to decode VP9 with libdav1d",
+                CodecId::H264 => " — enable the `h264` feature flag to decode H.264 with OpenH264",
+                _              => "",
+            };
+            Err(Error::Video(format!(
+                "no pixel decoder available for {other}{hint}"
+            )))
+        }
+    }
+}
+
 /// Detects the container format from the file extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainerKind {
@@ -115,19 +143,7 @@ fn extract_with_demuxer<D: ContainerDemuxer>(
     let video_stream_idx = vs.index;
     let codec = vs.codec.clone();
 
-    // We only have a VP8 decoder right now.
-    match &codec {
-        CodecId::Vp8 => {}
-        other => {
-            return Err(Error::Video(format!(
-                "no pixel decoder available for {other}; \
-                 only VP8 keyframe decoding is implemented. \
-                 See crate limitations in demux_graph module docs."
-            )));
-        }
-    }
-
-    let mut decoder = Vp8Decoder;
+    let mut decoder = make_decoder(&codec)?;
     let mut result = ExtractResult { stream_count, ..Default::default() };
     let mut written = 0usize;
 
@@ -208,16 +224,7 @@ fn extract_range_with_demuxer<D: ContainerDemuxer>(
     let video_stream_idx = vs.index;
     let codec = vs.codec.clone();
 
-    match &codec {
-        CodecId::Vp8 => {}
-        other => {
-            return Err(Error::Video(format!(
-                "no pixel decoder available for {other}; only VP8 decoding is implemented."
-            )));
-        }
-    }
-
-    let mut decoder = Vp8Decoder;
+    let mut decoder = make_decoder(&codec)?;
     let mut result = ExtractResult { stream_count, ..Default::default() };
     let mut decoded = 0usize; // total successfully decoded frames
     let mut written = 0usize; // frames written to disk
@@ -421,9 +428,13 @@ fn format_output_path(pattern: &str, index: usize) -> std::path::PathBuf {
     std::path::PathBuf::from(out)
 }
 
-/// Convert a YUV420p [`VideoFrame`] to an RGB8 PNG and write to `path`.
+/// Write a decoded [`VideoFrame`] as a PNG. Handles Rgb8 and Yuv420p frames.
 fn write_video_frame_as_png(vf: &VideoFrame, path: &Path) -> Result<()> {
-    let rgb = yuv420p_to_rgb8(&vf.frame)?;
+    let rgb = match vf.frame.format {
+        PixelFormat::Rgb8   => vf.frame.clone(),
+        PixelFormat::Yuv420p => yuv420p_to_rgb8(&vf.frame)?,
+        fmt => return Err(Error::Filter(format!("unsupported pixel format for PNG output: {fmt:?}"))),
+    };
     let file = File::create(path)?;
     let mut writer = BufWriter::new(file);
     PngEncoder::new(&mut writer)

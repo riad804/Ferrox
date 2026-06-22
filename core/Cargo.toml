@@ -13,6 +13,9 @@ filters-extra = ["dep:ab_glyph"]
 gif-support = ["dep:gif", "dep:color_quant"]
 gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
 simd = ["dep:wide"]
+# Optional C-backed decoders — off by default, pure-Rust build stays the default.
+vp9 = ["video-codecs", "dep:dav1d"]
+h264 = ["video-codecs", "dep:openh264"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
@@ -43,6 +46,12 @@ ab_glyph = { version = "0.2", optional = true }
 # GIF support
 gif = { version = "0.13", optional = true }
 color_quant = { version = "1.1", optional = true }
+
+# VP9 decoder via libdav1d (BSD-licensed, C, feature = "vp9")
+dav1d = { version = "0.11", optional = true }
+
+# H.264 decoder via OpenH264 (BSD-licensed, C, feature = "h264")
+openh264 = { version = "0.9", optional = true }
 
 # GPU compute filters (wgpu + WGSL shaders, feature = "gpu")
 wgpu = { version = "22", optional = true }

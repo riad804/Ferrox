@@ -7,45 +7,63 @@ a limitation is architectural, the long-term plan is described.
 
 ## Video decoding
 
-### VP9 — no pixel decoder
+### VP9 — optional (`vp9` feature, backed by `libdav1d`)
 
-**Status**: Not implemented.
+**Status**: ✅ Implemented via the `vp9` feature flag.
 
-**Why**: There is no complete, production-quality pure-Rust VP9 pixel decoder
-available on crates.io as of 2026. `oxideav-vp9` exists but describes itself
-as a "scaffold pending clean-room re-implementation" and has no usable decode
-path. Writing a spec-compliant VP9 decoder is a 3–12 month engineering effort.
+**How it works**: When you enable `features = ["vp9"]`, ferrox links against
+`libdav1d` (the reference VP9/AV1 decoder by VideoLAN, BSD-2 license). The
+`Vp9Decoder` implements `VideoDecoder` and `extract_frames` / `extract_frames_range`
+automatically route VP9 packets through it.
 
-**Workaround**: Use VP8 source video (fully supported via `oxideav-vp8`), or
-transcode to VP8 with ffmpeg before processing.
+**Install system library**:
+```sh
+# Linux
+apt-get install libdav1d-dev
+# macOS
+brew install dav1d
+# Windows (via vcpkg)
+vcpkg install dav1d
+```
 
-**Long-term plan**: Track `oxideav-vp9` for maturity; evaluate `dav1d`
-pure-Rust port proposals.
+**Trade-off**: Adds a C build dependency and breaks the pure-Rust build
+guarantee. The default build (`cargo build`) uses no C code for VP9. Enable
+explicitly:
+```toml
+ferrox-core = { path = "…", features = ["vp9"] }
+```
+
+**Limitation**: 8-bit YUV420 only. 10/12-bit HDR VP9 profiles return an error.
 
 ---
 
-### H.264 — no pixel decoder
+### H.264 — optional (`h264` feature, backed by OpenH264)
 
-**Status**: Not implemented.
+**Status**: ✅ Implemented via the `h264` feature flag.
 
-**Why**: `h264-reader` (crates.io) parses NAL syntax but provides no inverse
-DCT, motion compensation, or deblocking filter — it is a bitstream parser, not
-a decoder. A baseline-profile H.264 decoder requires implementing:
+**How it works**: When you enable `features = ["h264"]`, ferrox links against
+Cisco's `libopenh264` (BSD-2 license, royalty-free patent grant). The
+`H264Decoder` handles both Annex B and AVCC packet formats and converts decoded
+YUV to RGB8.
 
-- Entropy coding (CAVLC / CABAC)
-- Inverse transforms (4×4 and 8×8 DCT)
-- Intra/inter prediction
-- In-loop deblocking filter
-
-This is a substantial, well-specified but time-intensive project.
-
-**Workaround**: Convert H.264 source to VP8 with ffmpeg:
+**Install system library**:
 ```sh
-ffmpeg -i input.mp4 -c:v libvpx output.webm
+# Linux (Cisco PPA or compile from source)
+apt-get install libopenh264-dev
+# macOS
+brew install openh264
+# Windows (via vcpkg)
+vcpkg install openh264
 ```
 
-**Long-term plan**: Monitor `openh264-rs` and community pure-Rust H.264
-efforts. A baseline-profile-only decoder covering most web video is feasible.
+**Trade-off**: Adds a C build dependency. The default build uses no C code for
+H.264. Enable explicitly:
+```toml
+ferrox-core = { path = "…", features = ["h264"] }
+```
+
+**Limitation**: OpenH264 supports Baseline and Main profiles; High-profile
+features (8×8 DCT, B-frames in some modes) may not decode correctly.
 
 ---
 

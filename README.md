@@ -205,6 +205,8 @@ ferrox/
 | `gif-support`  | ✅ | Animated GIF decode + encode |
 | `gpu`          | ❌ | wgpu GPU filters (ResizeGpu, BlurGpu) |
 | `simd`         | ❌ | SIMD pixel ops via `wide` |
+| `vp9`          | ❌ | VP9 decode via `libdav1d` (C, BSD-2) — requires system `dav1d` |
+| `h264`         | ❌ | H.264 decode via OpenH264 (C, BSD-2) — requires system `openh264` |
 
 ## Security
 

@@ -30,9 +30,8 @@ use crate::{
     codecs::video::{Av1Encoder, WebmMuxer},
     demux_graph::ContainerKind,
     error::{Error, Result},
-    frame::{Frame, PixelFormat},
     traits::{ContainerDemuxer, ContainerMuxer, VideoDecoder, VideoEncoder},
-    video::{CodecId, EncodedPacket, StreamInfo, StreamKind, VideoFrame},
+    video::{CodecId, EncodedPacket, StreamInfo, StreamKind},
 };
 
 /// Options controlling HLS output.
