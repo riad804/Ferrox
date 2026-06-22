@@ -840,6 +840,7 @@ dependencies = [
  "gif",
  "hound",
  "image",
+ "js-sys",
  "lewton",
  "matroska-demuxer",
  "mp3lame-encoder",
@@ -855,6 +856,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
+ "wasm-bindgen",
  "wgpu",
  "wide",
 ]
