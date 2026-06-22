@@ -1,13 +1,19 @@
 # ferrox
 
-A pure-Rust media processing pipeline — images, audio, video, GIFs, and an Axum HTTP service.
+A pure-Rust media processing pipeline — images, audio, video, GIFs, HLS, GPU filters, and an Axum HTTP service.
+
+[![CI](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml)
 
 ## Features
 
 - **Image** — PNG/JPEG encode, decode, resize, and a rich filter library
-- **Audio** — WAV/MP3/FLAC/OGG decode; WAV encode; volume, resample filters
+- **Audio** — WAV/MP3/AAC/FLAC/OGG/Opus decode (symphonia, pure Rust); WAV encode; volume, resample
 - **Video** — WebM/MKV/MP4 demux; VP8 decode; AV1 encode (rav1e); frame extraction
 - **Filters** — blur, crop, rotate, flip, brightness, contrast, saturation, negate, grayscale, thumbnail, pad, overlay, text overlay (ab_glyph)
+- **HLS** — segment video into WebM HLS segments + M3U8 playlist (`ferrox_core::hls_segment`)
+- **GPU filters** — `wgpu`-backed ResizeGpu + BlurGpu with WGSL compute shaders (feature `gpu`, CPU fallback on headless)
+- **SIMD** — `wide`-crate brightness/contrast pixel ops (feature `simd`)
+- **Fuzzing** — `cargo-fuzz` targets for PNG decoder, MP4 demuxer, M3U8 parser, MP3 decoder
 - **GIF** — animated GIF decode and encode with NeuQuant palette quantisation
 - **FilterGraph** — named-pad filter DAG with FFmpeg-style expression parsing
 - **HTTP service** — Axum-based `ferrox-service` for remote media processing
@@ -186,6 +192,52 @@ ferrox/
 └── docs/
     └── filters.md   Filter token reference
 ```
+
+## Feature flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `image-codecs` | ✅ | PNG/JPEG decode + encode |
+| `audio-codecs` | ✅ | WAV/MP3/FLAC/OGG/AAC/Opus decode |
+| `video-codecs` | ✅ | WebM/MKV/MP4 demux, VP8 decode |
+| `encode`       | ✅ | AV1 encode + WebM mux |
+| `filters-extra`| ✅ | Text overlay via `ab_glyph` |
+| `gif-support`  | ✅ | Animated GIF decode + encode |
+| `gpu`          | ❌ | wgpu GPU filters (ResizeGpu, BlurGpu) |
+| `simd`         | ❌ | SIMD pixel ops via `wide` |
+
+## Security
+
+```sh
+# Check advisories + licences + banned crates
+cargo deny check
+
+# Vulnerability scan
+cargo audit
+```
+
+## Fuzzing
+
+```sh
+# Install cargo-fuzz (nightly required)
+cargo +nightly fuzz run fuzz_png_decoder
+cargo +nightly fuzz run fuzz_mp4_demuxer
+cargo +nightly fuzz run fuzz_m3u8_parser
+cargo +nightly fuzz run fuzz_mp3_decoder
+```
+
+## Limitations
+
+See [docs/limitations.md](docs/limitations.md) for an honest accounting of
+what is not yet supported (VP9/H.264 decoding, MP3 encoding, MPEG-TS muxing).
+
+## Contributing
+
+1. Fork → branch → PR against `main`.
+2. `cargo test --workspace` must pass.
+3. `cargo clippy -- -D warnings` must be clean.
+4. For new filters: add a unit test in `core/tests/`.
+5. For new codecs: add a fuzz target in `fuzz/src/`.
 
 ## License
 

@@ -6,7 +6,7 @@ pub mod gif;
 #[cfg(feature = "video-codecs")]
 pub mod video;
 
-pub use audio::{FlacDecoder, Mp3Decoder, VorbisDecoder, WavDecoder, WavEncoder};
+pub use audio::{FlacDecoder, Mp3Decoder, SymphoniaDecoder, VorbisDecoder, WavDecoder, WavEncoder};
 pub use jpeg::{JpegDecoder, JpegEncoder};
 pub use png::{PngDecoder, PngEncoder};
 #[cfg(feature = "video-codecs")]

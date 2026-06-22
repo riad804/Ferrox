@@ -11,16 +11,21 @@ video-codecs = ["dep:mp4", "dep:matroska-demuxer", "dep:oxideav-vp8"]
 encode = ["video-codecs", "dep:rav1e", "dep:oxideav-mkv", "dep:oxideav-core"]
 filters-extra = ["dep:ab_glyph"]
 gif-support = ["dep:gif", "dep:color_quant"]
+gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
+simd = ["dep:wide"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 thiserror = "2"
 tracing = "0.1"
 hound = "3"
-minimp3 = "0.5"
 claxon = "0.4"
 lewton = "0.10"
 rubato = "0.15"
+
+# Pure-Rust multi-format audio decoder (replaces minimp3-sys C dependency)
+# Supports: MP3, AAC, FLAC, Vorbis, Opus, WAV, AIFF, MP4/M4A containers
+symphonia = { version = "0.5", features = ["mp3", "aac", "ogg", "flac", "vorbis", "wav", "isomp4"] }
 
 # Video container demuxers + VP8 decoder (optional, enabled by `video-codecs`)
 mp4 = { version = "0.14", optional = true }
@@ -38,6 +43,14 @@ ab_glyph = { version = "0.2", optional = true }
 # GIF support
 gif = { version = "0.13", optional = true }
 color_quant = { version = "1.1", optional = true }
+
+# GPU compute filters (wgpu + WGSL shaders, feature = "gpu")
+wgpu = { version = "22", optional = true }
+pollster = { version = "0.3", optional = true }
+bytemuck = { version = "1", features = ["derive"], optional = true }
+
+# SIMD pixel ops (feature = "simd")
+wide = { version = "0.7", optional = true }
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }

@@ -7,6 +7,11 @@ pub mod formats;
 pub mod frame;
 pub mod graph;
 pub mod media;
+pub mod simd_ops;
+#[cfg(feature = "gpu")]
+pub mod gpu;
+#[cfg(feature = "gpu")]
+pub use gpu::{BlurGpu, GpuFilter, ResizeGpu};
 pub mod registry;
 pub mod traits;
 pub mod video;
@@ -28,6 +33,7 @@ pub use filters::{TextColor, DrawTextFilter};
 pub use frame::{Frame, PixelFormat};
 pub use graph::{AudioGraph, Graph};
 pub use media::{MediaFrame, MediaType};
+pub use codecs::{Mp3Decoder, SymphoniaDecoder};
 pub use traits::{
     AudioDecoder, AudioEncoder, AudioFilter,
     Decoder, DynDecoder, DynEncoder, Encoder, Filter, Format, MediaFilter,
@@ -47,5 +53,9 @@ pub use traits::{ContainerMuxer, VideoEncoder};
 pub use video::EncodedPacket;
 #[cfg(feature = "encode")]
 pub mod transcode_graph;
+#[cfg(feature = "encode")]
+pub mod hls;
+#[cfg(feature = "encode")]
+pub use hls::{segment as hls_segment, HlsOptions, HlsResult, SegmentInfo, parse_m3u8, M3u8Playlist, M3u8Segment};
 #[cfg(feature = "gif-support")]
 pub use codecs::gif::{decode_gif, encode_gif, GifEncodeOptions, GifFrame};

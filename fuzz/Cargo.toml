@@ -1,0 +1,36 @@
+[package]
+name = "ferrox-fuzz"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[[bin]]
+name = "fuzz_png_decoder"
+path = "src/fuzz_png_decoder.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_mp4_demuxer"
+path = "src/fuzz_mp4_demuxer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_m3u8_parser"
+path = "src/fuzz_m3u8_parser.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_mp3_decoder"
+path = "src/fuzz_mp3_decoder.rs"
+test = false
+doc = false
+
+[dependencies]
+ferrox-core = { path = "../core", features = ["encode"] }
+libfuzzer-sys = "0.4"

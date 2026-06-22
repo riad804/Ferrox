@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::{
-    codecs::{FlacDecoder, JpegDecoder, JpegEncoder, Mp3Decoder, PngDecoder, PngEncoder, VorbisDecoder, WavDecoder, WavEncoder},
+    codecs::{FlacDecoder, JpegDecoder, JpegEncoder, Mp3Decoder, PngDecoder, PngEncoder, SymphoniaDecoder, VorbisDecoder, WavDecoder, WavEncoder},
     traits::{DynAudioDecoder, DynAudioEncoder, DynDecoder, DynEncoder},
 };
 
@@ -81,10 +81,14 @@ impl AudioDecoderRegistry {
 impl Default for AudioDecoderRegistry {
     fn default() -> Self {
         let mut r = Self::new();
-        r.register("wav", Box::new(WavDecoder));
-        r.register("mp3", Box::new(Mp3Decoder));
+        r.register("wav",  Box::new(WavDecoder));
+        r.register("mp3",  Box::new(Mp3Decoder));
         r.register("flac", Box::new(FlacDecoder));
-        r.register("ogg", Box::new(VorbisDecoder));
+        r.register("ogg",  Box::new(VorbisDecoder));
+        // Symphonia-backed decoders for formats without specialist impls
+        r.register("aac",  Box::new(SymphoniaDecoder::with_ext("aac")));
+        r.register("m4a",  Box::new(SymphoniaDecoder::with_ext("m4a")));
+        r.register("opus", Box::new(SymphoniaDecoder::with_ext("opus")));
         r
     }
 }

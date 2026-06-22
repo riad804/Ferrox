@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+    tags:     ["v*"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── build + test ─────────────────────────────────────────────────────────────
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install NASM (Linux — required by rav1e)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Install NASM (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+
+      - name: Build (default features)
+        run: cargo build --workspace --exclude ferrox-fuzz
+
+      - name: Build (all optional features)
+        run: cargo build -p ferrox-core --features "gpu,simd"
+
+      - name: Clippy
+        run: cargo clippy --workspace --exclude ferrox-fuzz -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --exclude ferrox-fuzz
+
+  # ── security audit ───────────────────────────────────────────────────────────
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --quiet
+      - name: Run cargo audit
+        run: cargo audit
+
+  # ── supply-chain (cargo deny) ─────────────────────────────────────────────
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses bans sources
+
+  # ── WASM build ───────────────────────────────────────────────────────────────
+  wasm:
+    name: WASM build (wasm32-wasi)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + wasm32-wasi target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Install NASM
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Build core for WASM (no video-codecs — C demuxers excluded)
+        run: |
+          cargo build -p ferrox-core \
+            --target wasm32-wasip1 \
+            --no-default-features \
+            --features "image-codecs,audio-codecs,filters-extra,gif-support"
+
+  # ── release binaries ─────────────────────────────────────────────────────────
+  release:
+    name: Release (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, audit, deny]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            ext: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: ".exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install NASM (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm
+
+      - name: Install NASM (macOS)
+        if: runner.os == 'macOS'
+        run: brew install nasm
+
+      - name: Build release binaries
+        run: cargo build --release -p ferrox -p ferrox-service --target ${{ matrix.target }}
+
+      - name: Package artifacts
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          STEM="ferrox-${TAG}-${{ matrix.target }}"
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/ferrox${{ matrix.ext }}         dist/ferrox${{ matrix.ext }}
+          cp target/${{ matrix.target }}/release/ferrox-service${{ matrix.ext }} dist/ferrox-service${{ matrix.ext }}
+          cd dist
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            7z a "../${STEM}.zip" *
+          else
+            tar czf "../${STEM}.tar.gz" *
+          fi
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrox-${{ matrix.target }}
+          path: ferrox-*.tar.gz
+                ferrox-*.zip
+
+      - name: Create GitHub Release
+        if: runner.os == 'Linux'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ferrox-*.tar.gz
+            ferrox-*.zip
