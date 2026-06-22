@@ -118,25 +118,48 @@ ferrox-core = { path = "…", features = ["opus-encode"] }
 
 ## Container muxing
 
-### TS / MPEG-TS muxer — not implemented
+### TS / MPEG-TS muxer — ✅ Implemented (pure Rust)
 
-**Status**: HLS segments are written as WebM files, not MPEG-TS (`.ts`).
+**Status**: `MpegTsMuxer` is a pure-Rust MPEG-TS (ISO 13818-1) muxer.
+No C dependencies.  Enabled via the `encode` feature (on by default).
 
-**Why**: MPEG-TS muxing is not currently implemented in Rust without C bindings.
-HLS v6+ supports WebM/fMP4 segments with `#EXT-X-MAP`, but older HLS players
-(iOS < 10, some Android devices) require MPEG-TS.
+**How it works**: Writes 188-byte transport stream packets with full PAT +
+PMT + PES packetisation.  Supports AV1, H.264, and AAC elementary streams.
+PCR is embedded in keyframe packets for A/V sync.
 
-**Workaround**: Use ffmpeg to re-segment WebM HLS output into TS:
-```sh
-ffmpeg -i index.m3u8 -c copy -hls_segment_type mpegts output.m3u8
+```rust
+use ferrox_core::{MpegTsMuxer, traits::ContainerMuxer};
+let mut ts_file = std::fs::File::create("output.ts")?;
+let mut mux = MpegTsMuxer::new(&mut ts_file, &streams, fps_num, fps_den)?;
+mux.write_header()?;
+// ... write_packet for each EncodedPacket
+mux.write_trailer()?;
 ```
 
-### fMP4 (fragmented MP4) muxer — not implemented
+**Limitation**: Single-program only; no TS encryption; PCR derived from video PTS.
 
-**Status**: Output is WebM. MP4 output requires an fMP4 muxer.
+---
 
-**Long-term plan**: Implement a minimal fMP4 muxer (ISO 14496-12) for
-broader device compatibility.
+### fMP4 (fragmented MP4) muxer — ✅ Implemented (pure Rust)
+
+**Status**: `FMp4Muxer` is a pure-Rust ISO 14496-12 fragmented MP4 muxer.
+No C dependencies.  Enabled via the `encode` feature (on by default).
+
+**How it works**: Writes `ftyp` → `moov` (with `mvex`/`trex` for fragmented
+mode) → `moof`+`mdat` fragment pairs.  Supports AV1 (`av01`), H.264 (`avc1`),
+and AAC (`mp4a`/`esds`) tracks.  Fragments are flushed every 30 packets or at
+trailer time.
+
+```rust
+use ferrox_core::{FMp4Muxer, traits::ContainerMuxer};
+let mut mp4_file = std::fs::File::create("output.mp4")?;
+let mut mux = FMp4Muxer::new(mp4_file, &streams, fps_num, fps_den)?;
+mux.write_header()?;
+// ... write_packet for each EncodedPacket
+mux.write_trailer()?;
+```
+
+**Limitation**: Single video + single audio track; no edit lists; no encryption.
 
 ---
 

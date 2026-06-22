@@ -6,6 +6,10 @@ pub mod webm_demux;
 pub mod av1_enc;
 #[cfg(feature = "encode")]
 pub mod webm_mux;
+#[cfg(feature = "encode")]
+pub mod mpegts_mux;
+#[cfg(feature = "encode")]
+pub mod fmp4_mux;
 #[cfg(feature = "vp9")]
 pub mod vp9;
 #[cfg(feature = "h264")]
@@ -19,6 +23,10 @@ pub use webm_demux::WebmDemuxer;
 pub use av1_enc::Av1Encoder;
 #[cfg(feature = "encode")]
 pub use webm_mux::WebmMuxer;
+#[cfg(feature = "encode")]
+pub use mpegts_mux::MpegTsMuxer;
+#[cfg(feature = "encode")]
+pub use fmp4_mux::FMp4Muxer;
 #[cfg(feature = "vp9")]
 pub use vp9::Vp9Decoder;
 #[cfg(feature = "h264")]

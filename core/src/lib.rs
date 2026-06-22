@@ -54,7 +54,7 @@ pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]
 pub use demux_graph::{extract_audio, extract_frames, ContainerKind, ExtractResult};
 #[cfg(feature = "encode")]
-pub use codecs::video::{Av1Encoder, WebmMuxer};
+pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer};
 #[cfg(feature = "encode")]
 pub use traits::{ContainerMuxer, VideoEncoder};
 #[cfg(feature = "encode")]

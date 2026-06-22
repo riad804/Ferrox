@@ -18,7 +18,7 @@ use std::io::Write;
 use crate::{
     error::{Error, Result},
     traits::ContainerMuxer,
-    video::{CodecId, EncodedPacket, StreamInfo, StreamKind},
+    video::{CodecId, EncodedPacket, StreamInfo},
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -268,7 +268,7 @@ struct ElemStream {
 /// Pure-Rust MPEG-TS muxer.
 ///
 /// Implements [`ContainerMuxer`].
-pub struct MpegTsMuxer<W: Write> {
+pub struct MpegTsMuxer<W: Write + Send> {
     writer: W,
     streams: Vec<ElemStream>,
     pat_cc:  u8,
@@ -279,7 +279,7 @@ pub struct MpegTsMuxer<W: Write> {
     timebase: (u64, u64), // (fps_num, fps_den)
 }
 
-impl<W: Write> MpegTsMuxer<W> {
+impl<W: Write + Send> MpegTsMuxer<W> {
     /// Create a new MPEG-TS muxer.
     ///
     /// `streams` is the same slice used by [`WebmMuxer`].
@@ -355,7 +355,7 @@ impl<W: Write> MpegTsMuxer<W> {
     }
 }
 
-impl<W: Write> ContainerMuxer for MpegTsMuxer<W> {
+impl<W: Write + Send> ContainerMuxer for MpegTsMuxer<W> {
     fn write_header(&mut self) -> Result<()> {
         self.write_pat_pmt()
     }
