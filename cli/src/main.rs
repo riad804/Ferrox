@@ -81,14 +81,19 @@ enum Command {
         height: u32,
     },
 
-    /// Convert audio between formats (WAV, MP3, FLAC, OGG → WAV).
+    /// Convert audio between formats.
     ///
-    /// Example:
+    /// Input:  wav, mp3, flac, ogg, aac, m4a, opus
+    /// Output: wav (always); mp3 (feature mp3-encode); opus/ogg (feature opus-encode)
+    ///
+    /// Examples:
     ///   ferrox audio-convert input.mp3 output.wav
+    ///   ferrox audio-convert input.wav output.mp3   # requires --features mp3-encode
+    ///   ferrox audio-convert input.wav output.opus  # requires --features opus-encode
     AudioConvert {
-        /// Input audio file (wav/mp3/flac/ogg).
+        /// Input audio file.
         input: PathBuf,
-        /// Output audio file (wav).
+        /// Output audio file.
         output: PathBuf,
     },
 

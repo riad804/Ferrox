@@ -69,25 +69,50 @@ features (8×8 DCT, B-frames in some modes) may not decode correctly.
 
 ## Audio encoding
 
-### MP3 encoding — not implemented
+### MP3 encoding — optional (`mp3-encode` feature, backed by libmp3lame)
 
-**Status**: Encoding to MP3 is not supported. Only WAV output is currently
-available for audio encoding.
+**Status**: ✅ Implemented via the `mp3-encode` feature flag.
 
-**Why**: There is no pure-Rust MP3 encoder on crates.io. The dominant MP3
-encoder (`lame`) is LGPL C code.
+**How it works**: `Mp3Encoder` wraps `libmp3lame` (LGPL). Supports CBR and VBR
+mode, all standard bitrates (40–320 kbps), mono/stereo/multi-channel input
+(multi-channel is down-mixed to stereo).
 
-**Workaround**: Encode to WAV and use an external tool to re-encode to MP3.
+**Install system library**:
+```sh
+apt-get install libmp3lame-dev   # Linux
+brew install lame                 # macOS
+vcpkg install mp3lame             # Windows
+```
 
-**Long-term plan**: `minimp3` (C) could be used with explicit licensing
-acceptance; alternatively, an open-source pure-Rust encoder could be developed.
+**Enable**:
+```toml
+ferrox-core = { path = "…", features = ["mp3-encode"] }
+```
 
-### Opus encoding — not implemented
+**Trade-off**: LGPL license. The default build is LGPL-free.
 
-**Status**: Decoding Opus (via symphonia) is supported. Encoding is not.
+---
 
-**Why**: `opus-encoder` on crates.io wraps `libopus` (C). No pure-Rust Opus
-encoder exists yet.
+### Opus encoding — optional (`opus-encode` feature, backed by libopus)
+
+**Status**: ✅ Implemented via the `opus-encode` feature flag.
+
+**How it works**: `OpusEncoder` wraps `libopus` (BSD-3, Xiph). Produces
+Ogg-wrapped `.opus` output (RFC 7845). Supports mono and stereo; multi-channel
+input is down-mixed. Input at non-48 kHz sample rates is automatically
+resampled to 48 kHz.
+
+**Install system library**:
+```sh
+apt-get install libopus-dev   # Linux
+brew install opus              # macOS
+vcpkg install opus             # Windows
+```
+
+**Enable**:
+```toml
+ferrox-core = { path = "…", features = ["opus-encode"] }
+```
 
 ---
 

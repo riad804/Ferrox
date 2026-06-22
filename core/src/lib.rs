@@ -34,6 +34,10 @@ pub use frame::{Frame, PixelFormat};
 pub use graph::{AudioGraph, Graph};
 pub use media::{MediaFrame, MediaType};
 pub use codecs::{Mp3Decoder, SymphoniaDecoder};
+#[cfg(feature = "mp3-encode")]
+pub use codecs::{Mp3Encoder, Mp3Options, Mp3Quality};
+#[cfg(feature = "opus-encode")]
+pub use codecs::{OpusEncoder, OpusOptions, OpusApplication};
 pub use traits::{
     AudioDecoder, AudioEncoder, AudioFilter,
     Decoder, DynDecoder, DynEncoder, Encoder, Filter, Format, MediaFilter,

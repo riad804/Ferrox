@@ -56,18 +56,31 @@ jobs:
       - name: Build (default features)
         run: cargo build --workspace --exclude ferrox-fuzz
 
-      - name: Build (all optional features, Linux/macOS only — dav1d available)
+      - name: Install audio encoder libs (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libmp3lame-dev libopus-dev
+
+      - name: Install audio encoder libs (macOS)
+        if: runner.os == 'macOS'
+        run: brew install lame opus
+
+      - name: Build (all optional features, Linux/macOS only — C libs available)
         if: runner.os != 'Windows'
-        run: cargo build -p ferrox-core --features "gpu,simd,vp9"
+        run: cargo build -p ferrox-core --features "gpu,simd,vp9,mp3-encode,opus-encode"
 
       - name: Build (all optional features, Windows — skip C system libs)
         if: runner.os == 'Windows'
         run: cargo build -p ferrox-core --features "gpu,simd"
 
+      - name: Test (with audio encoders, Linux/macOS)
+        if: runner.os != 'Windows'
+        run: cargo test --workspace --exclude ferrox-fuzz --features "mp3-encode,opus-encode"
+
       - name: Clippy
         run: cargo clippy --workspace --exclude ferrox-fuzz -- -D warnings
 
-      - name: Test
+      - name: Test (Windows — default features only)
+        if: runner.os == 'Windows'
         run: cargo test --workspace --exclude ferrox-fuzz
 
   # ── security audit ───────────────────────────────────────────────────────────

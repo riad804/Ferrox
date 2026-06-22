@@ -16,6 +16,9 @@ simd = ["dep:wide"]
 # Optional C-backed decoders — off by default, pure-Rust build stays the default.
 vp9 = ["video-codecs", "dep:dav1d"]
 h264 = ["video-codecs", "dep:openh264"]
+# Optional C-backed audio encoders — off by default.
+mp3-encode  = ["dep:mp3lame-encoder"]
+opus-encode = ["dep:audiopus"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
@@ -52,6 +55,12 @@ dav1d = { version = "0.11", optional = true }
 
 # H.264 decoder via OpenH264 (BSD-licensed, C, feature = "h264")
 openh264 = { version = "0.9", optional = true }
+
+# MP3 encoder via libmp3lame (LGPL, C, feature = "mp3-encode")
+mp3lame-encoder = { version = "0.2", optional = true }
+
+# Opus encoder via libopus (BSD-3, C, feature = "opus-encode")
+audiopus = { version = "0.3.0-rc.0", optional = true }
 
 # GPU compute filters (wgpu + WGSL shaders, feature = "gpu")
 wgpu = { version = "22", optional = true }

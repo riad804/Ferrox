@@ -7,7 +7,7 @@ A pure-Rust media processing pipeline — images, audio, video, GIFs, HLS, GPU f
 ## Features
 
 - **Image** — PNG/JPEG encode, decode, resize, and a rich filter library
-- **Audio** — WAV/MP3/AAC/FLAC/OGG/Opus decode (symphonia, pure Rust); WAV encode; volume, resample
+- **Audio** — WAV/MP3/AAC/FLAC/OGG/Opus decode (symphonia, pure Rust); WAV encode; MP3 encode (`mp3-encode`); Opus/Ogg encode (`opus-encode`); volume, resample
 - **Video** — WebM/MKV/MP4 demux; VP8 decode; AV1 encode (rav1e); frame extraction
 - **Filters** — blur, crop, rotate, flip, brightness, contrast, saturation, negate, grayscale, thumbnail, pad, overlay, text overlay (ab_glyph)
 - **HLS** — segment video into WebM HLS segments + M3U8 playlist (`ferrox_core::hls_segment`)
@@ -207,6 +207,8 @@ ferrox/
 | `simd`         | ❌ | SIMD pixel ops via `wide` |
 | `vp9`          | ❌ | VP9 decode via `libdav1d` (C, BSD-2) — requires system `dav1d` |
 | `h264`         | ❌ | H.264 decode via OpenH264 (C, BSD-2) — requires system `openh264` |
+| `mp3-encode`   | ❌ | MP3 encode via `libmp3lame` (C, LGPL) — requires system `lame` |
+| `opus-encode`  | ❌ | Opus encode via `libopus` (C, BSD-3) — requires system `opus` |
 
 ## Security
 

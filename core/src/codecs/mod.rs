@@ -7,6 +7,10 @@ pub mod gif;
 pub mod video;
 
 pub use audio::{FlacDecoder, Mp3Decoder, SymphoniaDecoder, VorbisDecoder, WavDecoder, WavEncoder};
+#[cfg(feature = "mp3-encode")]
+pub use audio::{Mp3Encoder, Mp3Options, Mp3Quality};
+#[cfg(feature = "opus-encode")]
+pub use audio::{OpusEncoder, OpusOptions, OpusApplication};
 pub use jpeg::{JpegDecoder, JpegEncoder};
 pub use png::{PngDecoder, PngEncoder};
 #[cfg(feature = "video-codecs")]

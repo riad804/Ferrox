@@ -3,6 +3,10 @@ use crate::{
     codecs::{FlacDecoder, JpegDecoder, JpegEncoder, Mp3Decoder, PngDecoder, PngEncoder, SymphoniaDecoder, VorbisDecoder, WavDecoder, WavEncoder},
     traits::{DynAudioDecoder, DynAudioEncoder, DynDecoder, DynEncoder},
 };
+#[cfg(feature = "mp3-encode")]
+use crate::codecs::Mp3Encoder;
+#[cfg(feature = "opus-encode")]
+use crate::codecs::OpusEncoder;
 
 pub struct DecoderRegistry(HashMap<&'static str, Box<dyn DynDecoder>>);
 pub struct EncoderRegistry(HashMap<&'static str, Box<dyn DynEncoder>>);
@@ -109,6 +113,13 @@ impl Default for AudioEncoderRegistry {
     fn default() -> Self {
         let mut r = Self::new();
         r.register("wav", Box::new(WavEncoder));
+        #[cfg(feature = "mp3-encode")]
+        r.register("mp3", Box::new(Mp3Encoder::new()));
+        #[cfg(feature = "opus-encode")]
+        {
+            r.register("opus", Box::new(OpusEncoder::new()));
+            r.register("ogg",  Box::new(OpusEncoder::new()));
+        }
         r
     }
 }
