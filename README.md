@@ -1,6 +1,6 @@
 # ferrox
 
-A pure-Rust media processing pipeline — images, audio, video, GIFs, HLS, GPU filters, and an Axum HTTP service.
+A pure-Rust media processing pipeline — images, audio, video, GIFs, HLS, GPU filters, WASM bindings, and an Axum HTTP service.
 
 [![CI](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml)
 
@@ -8,16 +8,18 @@ A pure-Rust media processing pipeline — images, audio, video, GIFs, HLS, GPU f
 
 - **Image** — PNG/JPEG encode, decode, resize, and a rich filter library
 - **Audio** — WAV/MP3/AAC/FLAC/OGG/Opus decode (symphonia, pure Rust); WAV encode; MP3 encode (`mp3-encode`); Opus/Ogg encode (`opus-encode`); volume, resample
-- **Video** — WebM/MKV/MP4 demux; VP8 decode; AV1 encode (rav1e); frame extraction
+- **Video** — WebM/MKV/MP4 demux; VP8 decode (pure Rust); VP9 decode 8/10/12-bit HDR (`vp9`); H.264 Baseline–High Profile decode (`h264`); AV1 encode (rav1e)
+- **Container muxing** — WebM, fragmented MP4 (ISO 14496-12), MPEG-TS (ISO 13818-1) — all pure Rust, no C deps
+- **HLS** — fMP4 segments (default, iOS ≥ 10 + all Android) or MPEG-TS (legacy, iOS < 10) or WebM; `#EXT-X-MAP` init segment; M3U8 v3/v6
 - **Filters** — blur, crop, rotate, flip, brightness, contrast, saturation, negate, grayscale, thumbnail, pad, overlay, text overlay (ab_glyph)
-- **HLS** — segment video into WebM HLS segments + M3U8 playlist (`ferrox_core::hls_segment`)
-- **GPU filters** — `wgpu`-backed ResizeGpu + BlurGpu with WGSL compute shaders (feature `gpu`, CPU fallback on headless)
-- **SIMD** — `wide`-crate brightness/contrast pixel ops (feature `simd`)
-- **Fuzzing** — `cargo-fuzz` targets for PNG decoder, MP4 demuxer, M3U8 parser, MP3 decoder
-- **GIF** — animated GIF decode and encode with NeuQuant palette quantisation
 - **FilterGraph** — named-pad filter DAG with FFmpeg-style expression parsing
+- **GIF** — animated GIF decode and encode with NeuQuant palette quantisation
+- **GPU filters** — `wgpu`-backed ResizeGpu + BlurGpu with WGSL compute shaders (`gpu`, CPU fallback on headless)
+- **SIMD** — `wide`-crate brightness/contrast pixel ops (`simd`)
+- **WASM** — all pure-Rust features compile to `wasm32`; JS bindings via `wasm-bindgen` (`wasm` feature)
 - **HTTP service** — Axum-based `ferrox-service` for remote media processing
 - **Docker** — multi-stage `Dockerfile` for the CLI + service
+- **Fuzzing** — `cargo-fuzz` targets for PNG decoder, MP4 demuxer, M3U8 parser, MP3 decoder
 
 ## Quick start
 
@@ -125,6 +127,39 @@ ferrox gif-decode animation.gif frames/frame_%03d.png
 ferrox gif-encode frame_001.png frame_002.png frame_003.png -o out.gif --delay 8 --palette 128
 ```
 
+## HLS segmentation
+
+```sh
+# fMP4 segments (default — broadest device support)
+ferrox hls-segment input.webm --out-dir hls_out --format fmp4
+
+# MPEG-TS segments (legacy players, iOS < 10)
+ferrox hls-segment input.webm --out-dir hls_out --format ts
+
+# WebM segments (modern browsers only)
+ferrox hls-segment input.webm --out-dir hls_out --format webm
+```
+
+Produces `hls_out/seginit.mp4` (init segment, fMP4 only), `hls_out/seg000.mp4`, … and `hls_out/index.m3u8`.
+
+## WASM / JavaScript
+
+All pure-Rust features compile to `wasm32`.  The `wasm` feature adds `wasm-bindgen` JS bindings:
+
+```sh
+wasm-pack build core --no-default-features --features wasm --target web
+```
+
+```js
+import init, { decode_vp8_to_png, resize_image, apply_filter, probe_image } from './pkg/ferrox_core.js';
+await init();
+
+const png   = decode_vp8_to_png(vp8Bytes);       // VP8 keyframe → PNG
+const small = resize_image(pngBytes, 320, 240);   // resize → PNG
+const gray  = apply_filter(pngBytes, "grayscale"); // filtergraph → PNG
+const meta  = JSON.parse(probe_image(pngBytes));  // { width, height, format }
+```
+
 ## HTTP service
 
 `ferrox-service` exposes three endpoints:
@@ -185,30 +220,63 @@ docker run --rm -v "$PWD:/data" ferrox-service --entrypoint ferrox probe /data/i
 
 ```
 ferrox/
-├── core/        ferrox-core library (codecs, filters, filter graph, GIF)
+├── core/        ferrox-core library (codecs, filters, filter graph, GIF, HLS, WASM bindings)
 ├── cli/         ferrox CLI binary
 ├── service/     ferrox-service HTTP binary (Axum)
 ├── Dockerfile   Multi-stage build (builder → debian-slim runtime)
 └── docs/
-    └── filters.md   Filter token reference
+    ├── filters.md       Filter token reference
+    └── limitations.md   Honest accounting of known limitations
 ```
 
 ## Feature flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `image-codecs` | ✅ | PNG/JPEG decode + encode |
-| `audio-codecs` | ✅ | WAV/MP3/FLAC/OGG/AAC/Opus decode |
-| `video-codecs` | ✅ | WebM/MKV/MP4 demux, VP8 decode |
-| `encode`       | ✅ | AV1 encode + WebM mux |
-| `filters-extra`| ✅ | Text overlay via `ab_glyph` |
-| `gif-support`  | ✅ | Animated GIF decode + encode |
-| `gpu`          | ❌ | wgpu GPU filters (ResizeGpu, BlurGpu) |
-| `simd`         | ❌ | SIMD pixel ops via `wide` |
-| `vp9`          | ❌ | VP9 decode via `libdav1d` (C, BSD-2) — requires system `dav1d` |
-| `h264`         | ❌ | H.264 decode via OpenH264 (C, BSD-2) — requires system `openh264` |
-| `mp3-encode`   | ❌ | MP3 encode via `libmp3lame` (C, LGPL) — requires system `lame` |
-| `opus-encode`  | ❌ | Opus encode via `libopus` (C, BSD-3) — requires system `opus` |
+| `image-codecs`  | ✅ | PNG/JPEG decode + encode |
+| `audio-codecs`  | ✅ | WAV/MP3/FLAC/OGG/AAC/Opus decode |
+| `video-codecs`  | ✅ | WebM/MKV/MP4 demux, VP8 decode |
+| `encode`        | ✅ | AV1 encode + WebM/fMP4/MPEG-TS mux |
+| `filters-extra` | ✅ | Text overlay via `ab_glyph` |
+| `gif-support`   | ✅ | Animated GIF decode + encode |
+| `gpu`           | ❌ | wgpu GPU filters (ResizeGpu, BlurGpu) |
+| `simd`          | ❌ | SIMD pixel ops via `wide` |
+| `wasm`          | ❌ | wasm-bindgen JS API (for `wasm32` targets) |
+| `vp9`           | ❌ | VP9 decode 8/10/12-bit via `libdav1d` (C, BSD-2) |
+| `h264`          | ❌ | H.264 Baseline–High decode via OpenH264 (C, BSD-2) |
+| `mp3-encode`    | ❌ | MP3 encode via `libmp3lame` (C, LGPL) |
+| `opus-encode`   | ❌ | Opus/Ogg encode via `libopus` (C, BSD-3) |
+
+### Installing C library dependencies
+
+| Feature | Linux | macOS | Windows |
+|---------|-------|-------|---------|
+| `vp9` | `apt install libdav1d-dev` | `brew install dav1d` | `vcpkg install dav1d` |
+| `h264` | `apt install libopenh264-dev` | `brew install openh264` | `vcpkg install openh264` |
+| `mp3-encode` | `apt install libmp3lame-dev` | `brew install lame` | `vcpkg install mp3lame` |
+| `opus-encode` | `apt install libopus-dev` | `brew install opus` | `vcpkg install opus` |
+
+## Video codec support matrix
+
+| Codec | Decode | Encode | Feature flag | Notes |
+|-------|--------|--------|--------------|-------|
+| VP8   | ✅ pure Rust | — | `video-codecs` (default) | Keyframes only |
+| VP9   | ✅ C (libdav1d) | — | `vp9` | 8/10/12-bit, I420/I422/I444 |
+| H.264 | ✅ C (OpenH264) | — | `h264` | Baseline, Main, High profiles |
+| AV1   | — | ✅ pure Rust (rav1e) | `encode` (default) | |
+
+## Pixel format support
+
+| `PixelFormat` | Bits | Chroma | Source |
+|---|---|---|---|
+| `Rgb8` | 8 | — | All decoders output or convert to this |
+| `Yuv420p` | 8 | 4:2:0 | VP8, VP9, H.264 (YUV output mode) |
+| `Yuv420p10` | 10 | 4:2:0 | VP9 HDR (10-bit) |
+| `Yuv420p12` | 12 | 4:2:0 | VP9 HDR (12-bit) |
+| `Yuv422p` | 8 | 4:2:2 | VP9 |
+| `Yuv444p` | 8 | 4:4:4 | VP9 |
+
+HDR frames can be tone-mapped to RGB8 via `yuv420p_hdr_to_rgb8()`.
 
 ## Security
 
@@ -229,11 +297,6 @@ cargo +nightly fuzz run fuzz_mp4_demuxer
 cargo +nightly fuzz run fuzz_m3u8_parser
 cargo +nightly fuzz run fuzz_mp3_decoder
 ```
-
-## Limitations
-
-See [docs/limitations.md](docs/limitations.md) for an honest accounting of
-what is not yet supported (VP9/H.264 decoding, MP3 encoding, MPEG-TS muxing).
 
 ## Contributing
 
