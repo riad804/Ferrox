@@ -54,7 +54,7 @@ pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]
 pub use demux_graph::{extract_audio, extract_frames, ContainerKind, ExtractResult};
 #[cfg(feature = "encode")]
-pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer};
+pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "encode")]
 pub use traits::{ContainerMuxer, VideoEncoder};
 #[cfg(feature = "encode")]
@@ -64,6 +64,6 @@ pub mod transcode_graph;
 #[cfg(feature = "encode")]
 pub mod hls;
 #[cfg(feature = "encode")]
-pub use hls::{segment as hls_segment, HlsOptions, HlsResult, SegmentInfo, parse_m3u8, M3u8Playlist, M3u8Segment};
+pub use hls::{segment as hls_segment, HlsOptions, HlsResult, HlsSegmentFormat, SegmentInfo, parse_m3u8, M3u8Playlist, M3u8Segment};
 #[cfg(feature = "gif-support")]
 pub use codecs::gif::{decode_gif, encode_gif, GifEncodeOptions, GifFrame};

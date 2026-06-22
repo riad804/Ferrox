@@ -1,7 +1,7 @@
 /// Integration tests for the HLS segmenter and M3U8 parser.
 use ferrox_core::{
     hls_segment, parse_m3u8,
-    HlsOptions,
+    HlsOptions, HlsSegmentFormat,
 };
 use oxideav_vp8::{
     encoder::{encode_silent_keyframe, SilentKeyframeParams},
@@ -99,6 +99,7 @@ fn hls_segment_produces_playlist_and_segments() {
         output_dir: out_dir.path().to_path_buf(),
         playlist_name: "index.m3u8".into(),
         segment_prefix: "seg".into(),
+        format: HlsSegmentFormat::WebM,
         speed: 10,
         quantizer: 200,
     };
@@ -137,6 +138,7 @@ fn hls_segment_m3u8_roundtrip() {
         output_dir: out_dir.path().to_path_buf(),
         playlist_name: "out.m3u8".into(),
         segment_prefix: "chunk".into(),
+        format: HlsSegmentFormat::WebM,
         speed: 10,
         quantizer: 200,
     };

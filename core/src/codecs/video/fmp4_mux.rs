@@ -458,6 +458,60 @@ fn patch_trun_data_offset(moof: &mut Vec<u8>, data_offset: u32) {
     }
 }
 
+// ── HLS init segment helper ───────────────────────────────────────────────────
+
+/// Build an fMP4 init segment (`ftyp` + `moov`) as raw bytes.
+///
+/// Used by the HLS segmenter to write the `#EXT-X-MAP` init file once, then
+/// write each HLS segment as an independent `moof`+`mdat` pair (via
+/// [`build_fmp4_segment`]).
+pub fn build_fmp4_init(streams: &[StreamInfo]) -> Vec<u8> {
+    let tracks: Vec<TrackInfo> = streams.iter().enumerate().map(|(i, s)| {
+        let timescale = if s.is_video() { 90_000u32 } else { s.sample_rate.max(44100) };
+        TrackInfo {
+            track_id: (i + 1) as u32,
+            timescale,
+            codec: s.codec.clone(),
+            width: s.width,
+            height: s.height,
+            sample_rate: s.sample_rate,
+            channels: s.channels as u32,
+            codec_private: s.codec_private.clone(),
+            base_decode_time: 0,
+            buffered: Vec::new(),
+        }
+    }).collect();
+
+    let ftyp = build_ftyp();
+    let mvhd = build_mvhd(90_000, 0);
+    let mvex = build_mvex(&tracks);
+
+    let mut moov_payload = mvhd;
+    for ti in &tracks { moov_payload.extend_from_slice(&build_trak(ti, 0)); }
+    moov_payload.extend_from_slice(&mvex);
+    let moov = make_box(b"moov", &moov_payload);
+
+    let mut out = ftyp;
+    out.extend_from_slice(&moov);
+    out
+}
+
+/// Build one fMP4 media segment (`moof`+`mdat`) for use in HLS.
+///
+/// `sequence_number` must increase monotonically across all segments.
+/// `base_decode_time` is in the track timescale (90 000 Hz for video).
+pub fn build_fmp4_segment(
+    sequence_number: u32,
+    track_id: u32,
+    timescale: u32,
+    base_decode_time: u64,
+    packets: &[EncodedPacket],
+    fps_num: u64,
+    fps_den: u64,
+) -> Vec<u8> {
+    build_moof_mdat(sequence_number, track_id, base_decode_time, packets, timescale, fps_num, fps_den)
+}
+
 // ── FMp4Muxer ─────────────────────────────────────────────────────────────────
 
 /// Pure-Rust fragmented MP4 muxer.

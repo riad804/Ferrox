@@ -163,6 +163,37 @@ mux.write_trailer()?;
 
 ---
 
+## HLS
+
+### HLS fMP4 and MPEG-TS segments — ✅ Implemented
+
+**Status**: The HLS segmenter now supports three output formats via `HlsSegmentFormat`:
+
+| Format | Extension | HLS version | Compatibility |
+|--------|-----------|-------------|---------------|
+| `WebM` | `.webm` | v3 | Modern browsers only |
+| `FMp4` *(default)* | `.mp4` | v6 + `#EXT-X-MAP` | iOS ≥ 10, all Android, all modern browsers |
+| `MpegTs` | `.ts` | v3 | All HLS clients incl. iOS < 10 |
+
+For `FMp4`, an init segment (`seginit.mp4`) is written once and referenced via
+`#EXT-X-MAP` in the M3U8 playlist.  Each media segment is a self-contained
+`moof`+`mdat` pair with a monotonically increasing sequence number and correct
+`tfdt` (base decode time).
+
+```rust
+use ferrox_core::hls::{HlsOptions, HlsSegmentFormat, segment};
+
+let opts = HlsOptions {
+    segment_duration_secs: 6.0,
+    format: HlsSegmentFormat::FMp4,
+    ..HlsOptions::default()
+};
+segment(Path::new("input.webm"), &opts)?;
+// Produces: hls_out/seginit.mp4, hls_out/seg000.mp4, …, hls_out/index.m3u8
+```
+
+---
+
 ## GPU acceleration
 
 ### GPU not available on all platforms

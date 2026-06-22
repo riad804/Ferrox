@@ -26,7 +26,7 @@ pub use webm_mux::WebmMuxer;
 #[cfg(feature = "encode")]
 pub use mpegts_mux::MpegTsMuxer;
 #[cfg(feature = "encode")]
-pub use fmp4_mux::FMp4Muxer;
+pub use fmp4_mux::{FMp4Muxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "vp9")]
 pub use vp9::Vp9Decoder;
 #[cfg(feature = "h264")]
