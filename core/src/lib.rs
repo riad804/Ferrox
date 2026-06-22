@@ -1,5 +1,7 @@
 pub mod audio;
 pub mod codecs;
+#[cfg(feature = "wasm")]
+pub mod wasm;
 pub mod error;
 pub mod filter_graph;
 pub mod filters;
@@ -52,7 +54,7 @@ pub use codecs::video::H264Decoder;
 #[cfg(feature = "video-codecs")]
 pub use traits::{ContainerDemuxer, VideoDecoder};
 #[cfg(feature = "video-codecs")]
-pub use demux_graph::{extract_audio, extract_frames, ContainerKind, ExtractResult};
+pub use demux_graph::{extract_audio, extract_frames, yuv420p_to_rgb8, ContainerKind, ExtractResult};
 #[cfg(feature = "encode")]
 pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "encode")]

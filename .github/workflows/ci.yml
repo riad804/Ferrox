@@ -107,25 +107,32 @@ jobs:
 
   # ── WASM build ───────────────────────────────────────────────────────────────
   wasm:
-    name: WASM build (wasm32-wasi)
+    name: WASM build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust + wasm32-wasi target
+      - name: Install Rust + WASM targets
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-wasip1
+          targets: wasm32-unknown-unknown,wasm32-wasip1
 
-      - name: Install NASM
-        run: sudo apt-get update && sudo apt-get install -y nasm
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Build core for WASM (no video-codecs — C demuxers excluded)
+      - name: Build core for wasm32-wasip1 (image + audio + video, no encode)
         run: |
           cargo build -p ferrox-core \
             --target wasm32-wasip1 \
             --no-default-features \
-            --features "image-codecs,audio-codecs,filters-extra,gif-support"
+            --features "image-codecs,audio-codecs,video-codecs,filters-extra,gif-support"
+
+      - name: Build WASM JS bindings (wasm32-unknown-unknown, wasm feature)
+        run: |
+          cargo build -p ferrox-core \
+            --target wasm32-unknown-unknown \
+            --no-default-features \
+            --features "wasm"
 
   # ── release binaries ─────────────────────────────────────────────────────────
   release:

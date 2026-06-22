@@ -213,14 +213,52 @@ is transparent.
 
 ## WASM
 
-### Video codecs excluded from WASM builds
+### Video codecs in WASM — ✅ Supported
 
-**Status**: `video-codecs` and `encode` features cannot be compiled to
-`wasm32-wasi` because `oxideav-vp8` and `rav1e` depend on platform-specific
-assembly optimisations or OS threading primitives.
+**Status**: All pure-Rust features compile to both `wasm32-unknown-unknown`
+and `wasm32-wasip1`.  This includes `video-codecs` (VP8 decode, MP4/WebM
+demux), `image-codecs`, `audio-codecs`, `filters-extra`, and `gif-support`.
 
-**Supported in WASM**: PNG/JPEG image codecs, all audio decoders, all image
-filters, GIF encode/decode, filter graph.
+### JavaScript bindings — ✅ Implemented (`wasm` feature)
+
+**Status**: A `wasm-bindgen` facade in `core/src/wasm.rs` exposes these
+JS-callable functions:
+
+| Function | Description |
+|----------|-------------|
+| `decode_vp8_to_png(data)` | Decode a VP8 keyframe → PNG bytes |
+| `decode_image_to_png(data)` | Normalise PNG/JPEG → PNG bytes |
+| `resize_image(data, w, h)` | Resize PNG/JPEG → PNG bytes (Lanczos3) |
+| `apply_filter(data, expr)` | Apply a filtergraph expression → PNG bytes |
+| `blur_image(data, sigma)` | Gaussian blur → PNG bytes |
+| `grayscale_image(data)` | Grayscale → PNG bytes |
+| `probe_image(data)` | Return JSON metadata (`width`, `height`, `format`) |
+| `decode_gif_frames(data)` | Return packed PNG frames from an animated GIF |
+
+**Build**:
+```sh
+# Install wasm-pack
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+# Build the WASM package
+wasm-pack build core --no-default-features --features wasm --target web
+# Output: core/pkg/
+```
+
+**Usage in JavaScript**:
+```js
+import init, { decode_vp8_to_png, resize_image, apply_filter } from './pkg/ferrox_core.js';
+await init();
+
+const png = decode_vp8_to_png(vp8Bytes);
+const small = resize_image(pngBytes, 320, 240);
+const gray = apply_filter(pngBytes, "grayscale");
+```
+
+**Limitations**:
+- `encode` feature (AV1/WebM muxing via `rav1e`) and C-backed features
+  (`vp9`, `h264`, `mp3-encode`, `opus-encode`) are excluded from WASM builds.
+- `gpu` feature (wgpu) is not available in WASM without WebGPU backend work.
 
 ---
 

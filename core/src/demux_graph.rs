@@ -444,7 +444,7 @@ fn write_video_frame_as_png(vf: &VideoFrame, path: &Path) -> Result<()> {
 }
 
 /// BT.601 full-range YUV420p → packed RGB8.
-fn yuv420p_to_rgb8(frame: &Frame) -> Result<Frame> {
+pub fn yuv420p_to_rgb8(frame: &Frame) -> Result<Frame> {
     if frame.format != PixelFormat::Yuv420p {
         return Err(Error::Filter("yuv420p_to_rgb8 expects Yuv420p input".into()));
     }
