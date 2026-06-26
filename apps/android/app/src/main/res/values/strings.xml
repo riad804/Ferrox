@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ferrox Photo</string>
+    <string name="pick">Pick photo</string>
+    <string name="save">Save</string>
+    <string name="brightness_up">Brightness +</string>
+    <string name="contrast_up">Contrast +</string>
+    <string name="grayscale">Grayscale</string>
+    <string name="blur">Blur</string>
+    <string name="rotate">Rotate 90°</string>
+    <string name="crop_square">Crop square</string>
+    <string name="reset">Reset</string>
+</resources>

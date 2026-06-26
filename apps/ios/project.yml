@@ -1,0 +1,30 @@
+# XcodeGen spec — run `xcodegen generate` in this dir to produce the .xcodeproj.
+# (brew install xcodegen)
+name: FerroxPhotoEditor
+options:
+  bundleIdPrefix: io.ferrox
+  deploymentTarget:
+    iOS: "16.0"   # PhotosPicker (SwiftUI) requires iOS 16
+
+targets:
+  FerroxPhotoEditor:
+    type: application
+    platform: iOS
+    sources:
+      - FerroxPhotoEditor          # app Swift sources
+      - path: Generated/Ferrox.swift   # UniFFI-generated Swift API (synced)
+    dependencies:
+      - framework: Frameworks/Ferrox.xcframework
+        embed: false               # static lib — link, don't embed
+    info:
+      path: FerroxPhotoEditor/Info.plist
+      properties:
+        CFBundleDisplayName: Ferrox Photo
+        UILaunchScreen: {}
+        NSPhotoLibraryAddUsageDescription: "Save edited photos to your library."
+        NSPhotoLibraryUsageDescription: "Pick a photo to edit."
+    settings:
+      base:
+        # The generated FerroxFFI module map ships inside the xcframework headers.
+        SWIFT_VERSION: "5.0"
+        OTHER_LDFLAGS: ["-lc++"]

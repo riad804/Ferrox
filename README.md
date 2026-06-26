@@ -160,6 +160,25 @@ const gray  = apply_filter(pngBytes, "grayscale"); // filtergraph → PNG
 const meta  = JSON.parse(probe_image(pngBytes));  // { width, height, format }
 ```
 
+## Native mobile SDK (Android / iOS)
+
+`ferrox-mobile` wraps the pure-Rust core behind a [UniFFI](https://mozilla.github.io/uniffi-rs/)
+boundary and ships idiomatic **Kotlin** and **Swift** bindings.
+
+```sh
+./scripts/build-ios.sh      # → dist/ios/Ferrox.xcframework + Swift API
+./scripts/build-android.sh  # → dist/android/jniLibs/<abi>/*.so + Kotlin API
+```
+
+```swift
+let thumb = try resizeImage(imageData: jpeg, width: 320, height: 240) // Swift
+```
+```kotlin
+val thumb = resizeImage(jpeg, 320u, 240u)                            // Kotlin
+```
+
+See [docs/mobile.md](docs/mobile.md) for setup and integration.
+
 ## HTTP service
 
 `ferrox-service` exposes three endpoints:
