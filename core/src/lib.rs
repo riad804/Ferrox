@@ -14,7 +14,15 @@ pub mod simd_ops;
 pub mod gpu;
 #[cfg(feature = "gpu")]
 pub use gpu::{BlurGpu, GpuFilter, ResizeGpu};
+pub mod anim;
+pub mod blend;
+pub mod color;
+pub mod keyer;
+pub mod mask;
 pub mod registry;
+pub mod timeline;
+pub mod transitions;
+pub mod compositor;
 pub mod traits;
 pub mod video;
 #[cfg(feature = "video-codecs")]
@@ -33,6 +41,20 @@ pub use filters::{
 #[cfg(feature = "filters-extra")]
 pub use filters::{TextColor, DrawTextFilter};
 pub use frame::{Frame, PixelFormat};
+pub use anim::{Curve, Easing, Keyframe};
+pub use blend::BlendMode;
+pub use color::{AscCdl, ColorGrade, Lut3D};
+pub use keyer::Keyer;
+pub use mask::Mask;
+pub use transitions::{Direction, Transition};
+pub use timeline::{
+    AudioClip, AudioClipSource, AudioTrack, Clip, ClipAnimation, ClipSource, Fade, Project, Track,
+    Transform,
+};
+pub use compositor::{compose_frame, compose_frame_graded};
+pub use audio::effects::{apply_effects, AudioEffect, EqBand, EqKind};
+pub use audio::mixer::{mix, mix_full, render_audio};
+pub use audio::waveform::{generate_waveform, WaveformBucket};
 pub use graph::{AudioGraph, Graph};
 pub use media::{MediaFrame, MediaType};
 pub use codecs::{Mp3Decoder, SymphoniaDecoder};

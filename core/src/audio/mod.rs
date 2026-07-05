@@ -1,3 +1,16 @@
+//! Audio types and the audio-editing engine.
+//!
+//! [`AudioFrame`] is the shared sample buffer (interleaved `f32` in [-1, 1]).
+//! The editing layer is split across submodules:
+//! - [`mixer`] — the multi-track mixer (`mix`), the audio analog of the video
+//!   compositor's `compose_frame`, plus `render_audio` export.
+//! - [`effects`] — pure-Rust DSP processors (pan, EQ, compressor, reverb, …).
+//! - [`waveform`] — peak/RMS bucket generation for UI display.
+
+pub mod effects;
+pub mod mixer;
+pub mod waveform;
+
 /// Supported audio container/codec formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioFormat {
