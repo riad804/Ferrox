@@ -919,6 +919,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrox-ai"
+version = "0.1.0"
+dependencies = [
+ "ferrox-core",
+ "pollster",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "ferrox-core"
 version = "0.1.0"
 dependencies = [
@@ -943,6 +952,8 @@ dependencies = [
  "pollster",
  "rav1e",
  "rubato",
+ "serde",
+ "serde_json",
  "symphonia",
  "tempfile",
  "thiserror 2.0.18",

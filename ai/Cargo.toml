@@ -1,0 +1,24 @@
+[package]
+name = "ferrox-ai"
+version = "0.1.0"
+edition = "2021"
+
+# Optional, model-backed AI layer. Kept OUT of ferrox-core so the core stays
+# pure-Rust, deterministic, and WASM-safe. AI features are extension traits that
+# operate on core data structures; backends may be on-device or cloud.
+
+[lib]
+name = "ferrox_ai"
+
+[features]
+default = []
+# A cloud backend that calls out to a hosted inference service (stub for now).
+cloud = []
+
+[dependencies]
+ferrox-core = { path = "../core" }
+thiserror = "2"
+
+[dev-dependencies]
+# Minimal async executor to drive the async trait methods in tests.
+pollster = "0.3"
