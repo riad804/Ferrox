@@ -478,6 +478,68 @@ pub fn yuv420p_to_rgb8(frame: &Frame) -> Result<Frame> {
     Ok(Frame::new(frame.width, frame.height, PixelFormat::Rgb8, rgb))
 }
 
+/// Convert an `Rgb8`/`Rgba8` frame to packed planar `Yuv420p` (Y then U then V),
+/// using full-range BT.601 (JPEG) coefficients — the exact inverse of
+/// [`yuv420p_to_rgb8`]. Chroma is 4:2:0 subsampled by averaging each 2×2 block.
+///
+/// This is the encode-side companion to the decoders' YUV→RGB path: the
+/// compositor renders RGBA, and the exporter feeds `rav1e` YUV420p.
+pub fn rgb8_to_yuv420p(frame: &Frame) -> Result<Frame> {
+    let bpp = match frame.format {
+        PixelFormat::Rgb8 => 3usize,
+        PixelFormat::Rgba8 => 4usize,
+        other => {
+            return Err(Error::Filter(format!("rgb8_to_yuv420p expects Rgb8/Rgba8, got {other:?}")))
+        }
+    };
+    let w = frame.width as usize;
+    let h = frame.height as usize;
+    let uv_w = w.div_ceil(2);
+    let uv_h = h.div_ceil(2);
+
+    let mut y_plane = vec![0u8; w * h];
+    let mut u_plane = vec![0u8; uv_w * uv_h];
+    let mut v_plane = vec![0u8; uv_w * uv_h];
+
+    // Luma for every pixel.
+    for row in 0..h {
+        for col in 0..w {
+            let i = (row * w + col) * bpp;
+            let r = frame.data[i] as f32;
+            let g = frame.data[i + 1] as f32;
+            let b = frame.data[i + 2] as f32;
+            y_plane[row * w + col] = (0.299 * r + 0.587 * g + 0.114 * b).round().clamp(0.0, 255.0) as u8;
+        }
+    }
+
+    // Chroma: average each 2×2 block (clamped at edges).
+    for by in 0..uv_h {
+        for bx in 0..uv_w {
+            let (mut cb, mut cr, mut n) = (0.0f32, 0.0f32, 0.0f32);
+            for dy in 0..2 {
+                for dx in 0..2 {
+                    let row = (by * 2 + dy).min(h - 1);
+                    let col = (bx * 2 + dx).min(w - 1);
+                    let i = (row * w + col) * bpp;
+                    let r = frame.data[i] as f32;
+                    let g = frame.data[i + 1] as f32;
+                    let b = frame.data[i + 2] as f32;
+                    cb += -0.168736 * r - 0.331264 * g + 0.5 * b + 128.0;
+                    cr += 0.5 * r - 0.418688 * g - 0.081312 * b + 128.0;
+                    n += 1.0;
+                }
+            }
+            u_plane[by * uv_w + bx] = (cb / n).round().clamp(0.0, 255.0) as u8;
+            v_plane[by * uv_w + bx] = (cr / n).round().clamp(0.0, 255.0) as u8;
+        }
+    }
+
+    let mut data = y_plane;
+    data.extend_from_slice(&u_plane);
+    data.extend_from_slice(&v_plane);
+    Ok(Frame::new(frame.width, frame.height, PixelFormat::Yuv420p, data))
+}
+
 /// BT.2020 10/12-bit YUV420p → 8-bit RGB8 (tone-mapped by bit-shift).
 pub fn yuv420p_hdr_to_rgb8(frame: &Frame) -> Result<Frame> {
     let depth = match frame.format {

@@ -26,14 +26,14 @@ use crate::{
 
 /// Write a 4-byte big-endian u32.
 #[inline]
-fn be32(v: u32) -> [u8; 4] { v.to_be_bytes() }
+pub(super) fn be32(v: u32) -> [u8; 4] { v.to_be_bytes() }
 
 /// Write a 8-byte big-endian u64.
 #[inline]
-fn be64(v: u64) -> [u8; 8] { v.to_be_bytes() }
+pub(super) fn be64(v: u64) -> [u8; 8] { v.to_be_bytes() }
 
 /// Build a generic MP4 box: 4-byte length + 4-byte type + payload.
-fn make_box(fourcc: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+pub(super) fn make_box(fourcc: &[u8; 4], payload: &[u8]) -> Vec<u8> {
     let total = 8 + payload.len();
     let mut b = Vec::with_capacity(total);
     b.extend_from_slice(&be32(total as u32));
@@ -43,7 +43,7 @@ fn make_box(fourcc: &[u8; 4], payload: &[u8]) -> Vec<u8> {
 }
 
 /// Make a full box (version + flags prefix).
-fn make_full_box(fourcc: &[u8; 4], version: u8, flags: u32, payload: &[u8]) -> Vec<u8> {
+pub(super) fn make_full_box(fourcc: &[u8; 4], version: u8, flags: u32, payload: &[u8]) -> Vec<u8> {
     let mut p = Vec::with_capacity(4 + payload.len());
     p.push(version);
     p.extend_from_slice(&(flags & 0x00FF_FFFF).to_be_bytes()[1..]);
@@ -53,7 +53,7 @@ fn make_full_box(fourcc: &[u8; 4], version: u8, flags: u32, payload: &[u8]) -> V
 
 // ── ftyp ─────────────────────────────────────────────────────────────────────
 
-fn build_ftyp() -> Vec<u8> {
+pub(super) fn build_ftyp() -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(b"iso5");  // major brand
     p.extend_from_slice(&be32(512)); // minor version
@@ -65,7 +65,7 @@ fn build_ftyp() -> Vec<u8> {
 
 // ── mvhd ─────────────────────────────────────────────────────────────────────
 
-fn build_mvhd(timescale: u32, duration: u64) -> Vec<u8> {
+pub(super) fn build_mvhd(timescale: u32, duration: u64) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&be64(0u64)); // creation_time
     p.extend_from_slice(&be64(0u64)); // modification_time
@@ -87,7 +87,7 @@ fn build_mvhd(timescale: u32, duration: u64) -> Vec<u8> {
 
 // ── tkhd ─────────────────────────────────────────────────────────────────────
 
-fn build_tkhd(track_id: u32, duration: u64, width: u32, height: u32, is_audio: bool) -> Vec<u8> {
+pub(super) fn build_tkhd(track_id: u32, duration: u64, width: u32, height: u32, is_audio: bool) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&be64(0u64)); // creation_time
     p.extend_from_slice(&be64(0u64)); // modification_time
@@ -119,7 +119,7 @@ fn build_tkhd(track_id: u32, duration: u64, width: u32, height: u32, is_audio: b
 
 // ── mdhd ─────────────────────────────────────────────────────────────────────
 
-fn build_mdhd(timescale: u32, duration: u64) -> Vec<u8> {
+pub(super) fn build_mdhd(timescale: u32, duration: u64) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&be64(0u64)); // creation_time
     p.extend_from_slice(&be64(0u64)); // modification_time
@@ -132,7 +132,7 @@ fn build_mdhd(timescale: u32, duration: u64) -> Vec<u8> {
 
 // ── hdlr ─────────────────────────────────────────────────────────────────────
 
-fn build_hdlr(handler: &[u8; 4], name: &[u8]) -> Vec<u8> {
+pub(super) fn build_hdlr(handler: &[u8; 4], name: &[u8]) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&be32(0)); // pre_defined
     p.extend_from_slice(handler);
@@ -144,7 +144,7 @@ fn build_hdlr(handler: &[u8; 4], name: &[u8]) -> Vec<u8> {
 
 // ── sample entries ────────────────────────────────────────────────────────────
 
-fn build_avc1(width: u32, height: u32, avcc: &[u8]) -> Vec<u8> {
+pub(super) fn build_avc1(width: u32, height: u32, avcc: &[u8]) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&[0u8; 6]); // reserved
     p.extend_from_slice(&be32(1)[2..]); // data_reference_index = 1 (u16)
@@ -165,7 +165,7 @@ fn build_avc1(width: u32, height: u32, avcc: &[u8]) -> Vec<u8> {
     make_box(b"avc1", &p)
 }
 
-fn build_av01(width: u32, height: u32) -> Vec<u8> {
+pub(super) fn build_av01(width: u32, height: u32) -> Vec<u8> {
     let mut p = Vec::new();
     p.extend_from_slice(&[0u8; 6]); // reserved
     p.extend_from_slice(&[0x00, 0x01]); // data_reference_index

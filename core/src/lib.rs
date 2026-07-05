@@ -81,9 +81,10 @@ pub use traits::{ContainerDemuxer, VideoDecoder};
 pub use demux_graph::{
     extract_audio, extract_frames, ContainerKind, ExtractResult,
     any_yuv_to_rgb8, yuv420p_to_rgb8, yuv420p_hdr_to_rgb8, yuv422p_to_rgb8, yuv444p_to_rgb8,
+    rgb8_to_yuv420p,
 };
 #[cfg(feature = "encode")]
-pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
+pub use codecs::video::{Av1Encoder, FMp4Muxer, Mp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "encode")]
 pub use traits::{ContainerMuxer, VideoEncoder};
 #[cfg(feature = "encode")]
