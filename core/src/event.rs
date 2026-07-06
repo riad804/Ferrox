@@ -17,6 +17,14 @@ pub enum Event {
     TrackRemoved { index: usize },
     Undo,
     Redo,
+    /// A plugin was registered with the plugin manager.
+    PluginLoaded { id: String },
+    /// A plugin was enabled.
+    PluginEnabled { id: String },
+    /// A plugin was disabled.
+    PluginDisabled { id: String },
+    /// A plugin was unregistered.
+    PluginUnloaded { id: String },
 }
 
 /// A **port** for publishing [`Event`]s. Injected into the application layer so

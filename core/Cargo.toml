@@ -18,6 +18,9 @@ filters-extra = ["dep:ab_glyph"]
 gif-support = ["dep:gif", "dep:color_quant"]
 gpu = ["dep:wgpu", "dep:pollster", "dep:bytemuck"]
 simd = ["dep:wide"]
+# Host-side dynamic plugin loading (desktop only; the ABI contract itself is
+# always available so plugin authors need only default features).
+dynamic-plugins = ["dep:libloading"]
 # Optional C-backed decoders — off by default, pure-Rust build stays the default.
 vp9 = ["video-codecs", "dep:dav1d"]
 h264 = ["video-codecs", "dep:openh264"]
@@ -83,6 +86,9 @@ bytemuck = { version = "1", features = ["derive"], optional = true }
 # SIMD pixel ops (feature = "simd")
 wide = { version = "0.7", optional = true }
 
+# Host dynamic plugin loading (feature = "dynamic-plugins", desktop only)
+libloading = { version = "0.8", optional = true }
+
 # WASM bindings (feature = "wasm")
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
@@ -95,3 +101,9 @@ hound = "3"
 oxideav-vp8 = "0.2"
 # Used in gif integration tests
 gif = "0.13"
+
+criterion = "0.5"
+
+[[bench]]
+name = "plugin_registry"
+harness = false

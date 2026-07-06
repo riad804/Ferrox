@@ -1,39 +1,22 @@
-//! Pure-Rust MPEG-TS (ISO 13818-1) muxer.
-//!
-//! Writes PAT + PMT + PES-packetised elementary streams into 188-byte
-//! transport stream packets.  Supports:
-//! - AV1 video  (stream_type 0x06, registered via `registration_descriptor`)
-//! - H.264 video (stream_type 0x1B)
-//! - AAC audio  (stream_type 0x0F, ADTS framing)
-//! - Opus audio (stream_type 0x06, registered)
-//!
-//! This implementation is self-contained (no C bindings, no external crate).
-//!
-//! # Limitations
-//! - Single program only (one PAT entry → one PMT).
-//! - PCR is derived from video PTS (no separate PCR PID).
-//! - No encryption, no stuffing beyond what TS padding requires.
+//! MPEG-TS low-level helpers: TS-packet framing, PAT/PMT sections, PES headers.
 
 use std::io::Write;
-use crate::{
-    error::{Error, Result},
-    traits::ContainerMuxer,
-    video::{CodecId, EncodedPacket, StreamInfo},
-};
+use crate::error::{Error, Result};
+use crate::video::CodecId;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const TS_PACKET_SIZE: usize = 188;
-const SYNC_BYTE: u8 = 0x47;
+pub(super) const TS_PACKET_SIZE: usize = 188;
+pub(super) const SYNC_BYTE: u8 = 0x47;
 
-const PAT_PID:    u16 = 0x0000;
-const PMT_PID:    u16 = 0x0020;
-const FIRST_ELEM: u16 = 0x0100; // PIDs for elementary streams start here
+pub(super) const PAT_PID:    u16 = 0x0000;
+pub(super) const PMT_PID:    u16 = 0x0020;
+pub(super) const FIRST_ELEM: u16 = 0x0100; // PIDs for elementary streams start here
 
-const PROGRAM_NUM: u16 = 1;
+pub(super) const PROGRAM_NUM: u16 = 1;
 
 /// MPEG-TS stream_type byte for each supported codec.
-fn stream_type(codec: &CodecId) -> u8 {
+pub(super) fn stream_type(codec: &CodecId) -> u8 {
     match codec {
         CodecId::H264  => 0x1B,
         CodecId::Aac   => 0x0F,
@@ -44,7 +27,7 @@ fn stream_type(codec: &CodecId) -> u8 {
 }
 
 /// 4-byte registration_descriptor format_identifier for private streams.
-fn format_id(codec: &CodecId) -> Option<[u8; 4]> {
+pub(super) fn format_id(codec: &CodecId) -> Option<[u8; 4]> {
     match codec {
         CodecId::Av1  => Some(*b"AV01"),
         CodecId::Opus => Some(*b"Opus"),
@@ -54,7 +37,7 @@ fn format_id(codec: &CodecId) -> Option<[u8; 4]> {
 
 // ── CRC-32/MPEG ───────────────────────────────────────────────────────────────
 
-fn crc32_mpeg(data: &[u8]) -> u32 {
+pub(super) fn crc32_mpeg(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFF_FFFF;
     for &byte in data {
         for i in (0..8).rev() {
@@ -75,7 +58,7 @@ fn crc32_mpeg(data: &[u8]) -> u32 {
 /// - `payload_unit_start`: sets PUSI flag, inserts pointer_field=0 prefix
 /// - `cc`: continuity counter (0–15)
 /// - `payload`: up to 184 bytes of payload (rest is filled with 0xFF stuffing)
-fn write_ts_packet<W: Write>(
+pub(super) fn write_ts_packet<W: Write>(
     out: &mut W,
     pid: u16,
     payload_unit_start: bool,
@@ -100,7 +83,7 @@ fn write_ts_packet<W: Write>(
 }
 
 /// Same as `write_ts_packet` but with an adaptation field carrying PCR.
-fn write_ts_packet_with_pcr<W: Write>(
+pub(super) fn write_ts_packet_with_pcr<W: Write>(
     out: &mut W,
     pid: u16,
     payload_unit_start: bool,
@@ -141,7 +124,7 @@ fn write_ts_packet_with_pcr<W: Write>(
 
 // ── PAT ───────────────────────────────────────────────────────────────────────
 
-fn build_pat() -> Vec<u8> {
+pub(super) fn build_pat() -> Vec<u8> {
     let mut section: Vec<u8> = Vec::new();
     section.push(0x00); // pointer_field = 0
     section.push(0x00); // table_id = PAT
@@ -173,7 +156,7 @@ fn build_pat() -> Vec<u8> {
 
 // ── PMT ───────────────────────────────────────────────────────────────────────
 
-fn build_pmt(streams: &[(u16, CodecId)], pcr_pid: u16) -> Vec<u8> {
+pub(super) fn build_pmt(streams: &[(u16, CodecId)], pcr_pid: u16) -> Vec<u8> {
     let mut info: Vec<u8> = Vec::new();
     for (pid, codec) in streams {
         let st = stream_type(codec);
@@ -220,7 +203,7 @@ fn build_pmt(streams: &[(u16, CodecId)], pcr_pid: u16) -> Vec<u8> {
 
 // ── PES packetiser ────────────────────────────────────────────────────────────
 
-fn build_pes_header(stream_id: u8, pts_90khz: u64, dts_90khz: Option<u64>, payload_len: usize) -> Vec<u8> {
+pub(super) fn build_pes_header(stream_id: u8, pts_90khz: u64, dts_90khz: Option<u64>, payload_len: usize) -> Vec<u8> {
     let has_dts = dts_90khz.is_some();
     let pts_dts_flags: u8 = if has_dts { 0xC0 } else { 0x80 };
     let header_data_len: u8 = if has_dts { 10 } else { 5 };
@@ -248,7 +231,7 @@ fn build_pes_header(stream_id: u8, pts_90khz: u64, dts_90khz: Option<u64>, paylo
     h
 }
 
-fn write_pts_dts(buf: &mut Vec<u8>, ts: u64, marker_hi: u8) {
+pub(super) fn write_pts_dts(buf: &mut Vec<u8>, ts: u64, marker_hi: u8) {
     buf.push(marker_hi | (((ts >> 30) & 0x07) as u8) << 1 | 0x01);
     buf.push(((ts >> 22) & 0xFF) as u8);
     buf.push((((ts >> 15) & 0x7F) as u8) << 1 | 0x01);
@@ -258,162 +241,3 @@ fn write_pts_dts(buf: &mut Vec<u8>, ts: u64, marker_hi: u8) {
 
 // ── MpegTsMuxer ──────────────────────────────────────────────────────────────
 
-struct ElemStream {
-    pid: u16,
-    codec: CodecId,
-    stream_id: u8,   // PES stream_id byte
-    cc: u8,          // continuity counter
-}
-
-/// Pure-Rust MPEG-TS muxer.
-///
-/// Implements [`ContainerMuxer`].
-pub struct MpegTsMuxer<W: Write + Send> {
-    writer: W,
-    streams: Vec<ElemStream>,
-    pat_cc:  u8,
-    pmt_cc:  u8,
-    pat_pmt_interval: u32, // write PAT+PMT every N video packets
-    pkt_count: u32,
-    pcr_pid: u16,
-    timebase: (u64, u64), // (fps_num, fps_den)
-}
-
-impl<W: Write + Send> MpegTsMuxer<W> {
-    /// Create a new MPEG-TS muxer.
-    ///
-    /// `streams` is the same slice used by [`WebmMuxer`].
-    /// `fps_num / fps_den` is the video time base.
-    pub fn new(writer: W, streams: &[StreamInfo], fps_num: u64, fps_den: u64) -> Result<Self> {
-        let mut elem: Vec<ElemStream> = Vec::new();
-        let mut pcr_pid = FIRST_ELEM;
-        let mut first_video = true;
-
-        for (i, s) in streams.iter().enumerate() {
-            let pid = FIRST_ELEM + i as u16;
-            let stream_id = if s.is_video() {
-                if first_video { pcr_pid = pid; first_video = false; }
-                0xE0
-            } else {
-                0xC0
-            };
-            elem.push(ElemStream {
-                pid,
-                codec: s.codec.clone(),
-                stream_id,
-                cc: 0,
-            });
-        }
-
-        Ok(Self {
-            writer,
-            streams: elem,
-            pat_cc: 0,
-            pmt_cc: 0,
-            pat_pmt_interval: 30,
-            pkt_count: 0,
-            pcr_pid,
-            timebase: (fps_num, fps_den),
-        })
-    }
-
-    fn write_pat_pmt(&mut self) -> Result<()> {
-        let pat = build_pat();
-        self.write_section_packets(PAT_PID, &mut self.pat_cc.clone(), &pat)?;
-        self.pat_cc = self.pat_cc.wrapping_add(1) & 0x0F;
-
-        let stream_specs: Vec<(u16, CodecId)> = self.streams
-            .iter()
-            .map(|s| (s.pid, s.codec.clone()))
-            .collect();
-        let pmt = build_pmt(&stream_specs, self.pcr_pid);
-        let mut pmt_cc = self.pmt_cc;
-        self.write_section_packets(PMT_PID, &mut pmt_cc, &pmt)?;
-        self.pmt_cc = pmt_cc;
-        Ok(())
-    }
-
-    fn write_section_packets(&mut self, pid: u16, cc: &mut u8, section: &[u8]) -> Result<()> {
-        let mut offset = 0;
-        let mut first = true;
-        while offset < section.len() {
-            let avail = TS_PACKET_SIZE - 4;
-            let end = (offset + avail).min(section.len());
-            write_ts_packet(&mut self.writer, pid, first, *cc, &section[offset..end])?;
-            *cc = (*cc + 1) & 0x0F;
-            offset = end;
-            first = false;
-        }
-        Ok(())
-    }
-
-    fn pts_to_90khz(&self, pts: u64) -> u64 {
-        // pts is in timebase units (1/fps), convert to 90 kHz clock
-        let (num, den) = self.timebase;
-        if num == 0 { return pts * 3000; }
-        pts * den * 90_000 / num
-    }
-}
-
-impl<W: Write + Send> ContainerMuxer for MpegTsMuxer<W> {
-    fn write_header(&mut self) -> Result<()> {
-        self.write_pat_pmt()
-    }
-
-    fn write_packet(&mut self, packet: &EncodedPacket) -> Result<()> {
-        // Periodically re-emit PAT+PMT for seekability.
-        if packet.is_keyframe || self.pkt_count % self.pat_pmt_interval == 0 {
-            self.write_pat_pmt()?;
-        }
-        self.pkt_count += 1;
-
-        let stream_idx = packet.stream_index;
-        if stream_idx >= self.streams.len() {
-            return Err(Error::Video(format!(
-                "mpegts: stream index {stream_idx} out of range"
-            )));
-        }
-
-        let pid       = self.streams[stream_idx].pid;
-        let stream_id = self.streams[stream_idx].stream_id;
-        let is_pcr    = pid == self.pcr_pid;
-
-        let pts_90 = self.pts_to_90khz(packet.pts);
-        let pes_hdr = build_pes_header(stream_id, pts_90, None, packet.data.len());
-
-        // Concatenate PES header + payload, then chop into 188-byte packets.
-        let mut payload = Vec::with_capacity(pes_hdr.len() + packet.data.len());
-        payload.extend_from_slice(&pes_hdr);
-        payload.extend_from_slice(&packet.data);
-
-        let mut offset = 0;
-        let mut first  = true;
-        while offset < payload.len() {
-            let cc = self.streams[stream_idx].cc;
-
-            if first && is_pcr && packet.is_keyframe {
-                let avail = TS_PACKET_SIZE - 12; // 4 hdr + 8 adaptation field
-                let end = (offset + avail).min(payload.len());
-                write_ts_packet_with_pcr(
-                    &mut self.writer, pid, true, cc, pts_90,
-                    &payload[offset..end],
-                )?;
-                offset = end;
-            } else {
-                let avail = TS_PACKET_SIZE - 4;
-                let end = (offset + avail).min(payload.len());
-                write_ts_packet(&mut self.writer, pid, first, cc, &payload[offset..end])?;
-                offset = end;
-            }
-
-            self.streams[stream_idx].cc = (cc + 1) & 0x0F;
-            first = false;
-        }
-
-        Ok(())
-    }
-
-    fn write_trailer(&mut self) -> Result<()> {
-        self.writer.flush().map_err(Error::Io)
-    }
-}

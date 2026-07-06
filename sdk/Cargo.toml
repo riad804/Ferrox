@@ -31,3 +31,8 @@ thiserror = "2"
 
 [dev-dependencies]
 tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "editor_render"
+harness = false

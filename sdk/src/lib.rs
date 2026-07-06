@@ -33,8 +33,12 @@ pub use commands::{
     RemoveClipCommand, RemoveKeyframeCommand, SetBlendModeCommand, SetColorGradeCommand,
     SetKeyerCommand, TrimClipCommand,
 };
-pub use editor::Editor;
+pub use editor::{Editor, EditorBuilder};
 pub use error::{Result, SdkError};
+pub use ferrox_core::{Event, EventListener, EventSink, InProcessBus, NoopSink};
+pub use ferrox_core::plugin::{
+    Capability, CapabilitySet, Plugin, PluginKind, PluginManager, PLUGIN_API_VERSION,
+};
 #[cfg(feature = "export")]
 pub use export::{export_mp4, ExportSettings};
 

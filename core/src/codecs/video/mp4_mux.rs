@@ -13,7 +13,7 @@ use std::io::Write;
 use crate::error::{Error, Result};
 use crate::video::{CodecId, EncodedPacket, StreamInfo};
 
-use super::fmp4_mux::{
+use super::fmp4_mux::boxes::{
     be32, build_av01, build_avc1, build_ftyp, build_hdlr, build_mdhd, build_mvhd, build_tkhd,
     make_box, make_full_box,
 };

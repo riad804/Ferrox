@@ -1,12 +1,16 @@
-//! The [`Editor`] — the handle-based facade all consumers (CLI, WASM, UniFFI)
+//! The [`Editor`] — the handle-based facade all consumers (WASM, UniFFI, native)
 //! drive. It is `Clone` and thread-safe: internal state lives behind an
-//! `Arc<Mutex<..>>`, so a handle can be shared across threads/FFI and every
-//! mutation is serialized. All edits flow through the [`Command`] stack, giving
-//! undo/redo for free.
+//! `Arc<RwLock<..>>` (read-heavy: rendering/queries take read locks, commands
+//! take write locks). All edits flow through the [`Command`] stack, giving
+//! undo/redo for free, and publish [`Event`]s through an injected [`EventSink`].
+//!
+//! `std::sync::RwLock` (poison-recovered) is used rather than `parking_lot` so
+//! the SDK compiles unchanged to `wasm32`.
 
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use ferrox_core::{compose_frame_graded, Clip, Project};
+use ferrox_core::plugin::{register_builtins, CapabilitySet, PluginManager, PLUGIN_API_VERSION};
+use ferrox_core::{compose_frame_graded, Clip, Event, EventSink, NoopSink, Project};
 
 use crate::commands::Command;
 use crate::error::{Result, SdkError};
@@ -19,77 +23,157 @@ struct Inner {
     redo: Vec<Box<dyn Command>>,
 }
 
+/// Builder for [`Editor`] — the Dependency-Injection entry point. Wires optional
+/// ports (currently the [`EventSink`]); more ports (storage, executor, gpu) plug
+/// in here in later phases.
+pub struct EditorBuilder {
+    project: Project,
+    events: Arc<dyn EventSink>,
+    plugins: Option<Arc<PluginManager>>,
+}
+
+impl EditorBuilder {
+    fn new(project: Project) -> Self {
+        Self { project, events: Arc::new(NoopSink), plugins: None }
+    }
+
+    /// Inject an event sink (defaults to a no-op).
+    pub fn with_event_sink(mut self, sink: Arc<dyn EventSink>) -> Self {
+        self.events = sink;
+        self
+    }
+
+    /// Inject a pre-built plugin manager (defaults to one with the built-ins
+    /// registered and wired to this editor's event sink).
+    pub fn with_plugin_manager(mut self, plugins: Arc<PluginManager>) -> Self {
+        self.plugins = Some(plugins);
+        self
+    }
+
+    /// Construct the editor.
+    pub fn build(self) -> Editor {
+        let plugins = self.plugins.unwrap_or_else(|| {
+            // Register built-ins silently, then wire the editor's bus so only
+            // runtime plugin changes emit events.
+            let mgr = PluginManager::new(PLUGIN_API_VERSION, CapabilitySet::new());
+            register_builtins(&mgr).expect("built-in plugins register");
+            mgr.set_event_sink(Arc::clone(&self.events));
+            Arc::new(mgr)
+        });
+        Editor {
+            inner: Arc::new(RwLock::new(Inner { project: self.project, undo: Vec::new(), redo: Vec::new() })),
+            events: self.events,
+            plugins,
+        }
+    }
+}
+
 /// A cloneable, thread-safe handle to an editing session.
 #[derive(Clone)]
 pub struct Editor {
-    inner: Arc<Mutex<Inner>>,
+    inner: Arc<RwLock<Inner>>,
+    events: Arc<dyn EventSink>,
+    plugins: Arc<PluginManager>,
 }
 
 impl Editor {
-    /// A new editor with an empty project of the given output spec.
+    /// Start building an editor with an empty project of the given output spec.
+    pub fn builder(width: u32, height: u32, fps: f64) -> EditorBuilder {
+        EditorBuilder::new(Project::new(width, height, fps))
+    }
+
+    /// Start building an editor from an existing project.
+    pub fn builder_from_project(project: Project) -> EditorBuilder {
+        EditorBuilder::new(project)
+    }
+
+    /// A new editor with an empty project (no event sink).
     pub fn new(width: u32, height: u32, fps: f64) -> Self {
-        Self::from_project(Project::new(width, height, fps))
+        Self::builder(width, height, fps).build()
     }
 
-    /// Wrap an existing project.
+    /// Wrap an existing project (no event sink).
     pub fn from_project(project: Project) -> Self {
-        Self { inner: Arc::new(Mutex::new(Inner { project, undo: Vec::new(), redo: Vec::new() })) }
+        Self::builder_from_project(project).build()
     }
 
-    fn lock(&self) -> Result<MutexGuard<'_, Inner>> {
-        self.inner.lock().map_err(|_| SdkError::Poisoned)
+    fn read(&self) -> RwLockReadGuard<'_, Inner> {
+        self.inner.read().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Run a command: apply it, push to the undo stack, and clear the redo stack.
+    fn write(&self) -> RwLockWriteGuard<'_, Inner> {
+        self.inner.write().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn emit(&self, event: Event) {
+        self.events.publish(event);
+    }
+
+    /// Run a command: apply it, push to the undo stack, clear the redo stack.
     pub fn execute(&self, mut cmd: Box<dyn Command>) -> Result<()> {
-        let mut g = self.lock()?;
-        cmd.apply(&mut g.project)?;
-        g.undo.push(cmd);
-        g.redo.clear();
+        {
+            let mut g = self.write();
+            cmd.apply(&mut g.project)?;
+            g.undo.push(cmd);
+            g.redo.clear();
+        }
+        self.emit(Event::ProjectChanged);
         Ok(())
     }
 
     /// Undo the most recent command. Returns `false` if nothing to undo.
     pub fn undo(&self) -> Result<bool> {
-        let mut g = self.lock()?;
-        match g.undo.pop() {
-            Some(mut cmd) => {
-                cmd.revert(&mut g.project)?;
-                g.redo.push(cmd);
-                Ok(true)
+        let undone = {
+            let mut g = self.write();
+            match g.undo.pop() {
+                Some(mut cmd) => {
+                    cmd.revert(&mut g.project)?;
+                    g.redo.push(cmd);
+                    true
+                }
+                None => false,
             }
-            None => Ok(false),
+        };
+        if undone {
+            self.emit(Event::Undo);
         }
+        Ok(undone)
     }
 
     /// Redo the most recently undone command. Returns `false` if nothing to redo.
     pub fn redo(&self) -> Result<bool> {
-        let mut g = self.lock()?;
-        match g.redo.pop() {
-            Some(mut cmd) => {
-                cmd.apply(&mut g.project)?;
-                g.undo.push(cmd);
-                Ok(true)
+        let redone = {
+            let mut g = self.write();
+            match g.redo.pop() {
+                Some(mut cmd) => {
+                    cmd.apply(&mut g.project)?;
+                    g.undo.push(cmd);
+                    true
+                }
+                None => false,
             }
-            None => Ok(false),
+        };
+        if redone {
+            self.emit(Event::Redo);
         }
+        Ok(redone)
     }
 
     /// Depth of the undo stack.
     pub fn undo_depth(&self) -> usize {
-        self.lock().map(|g| g.undo.len()).unwrap_or(0)
+        self.read().undo.len()
     }
 
     /// Depth of the redo stack.
     pub fn redo_depth(&self) -> usize {
-        self.lock().map(|g| g.redo.len()).unwrap_or(0)
+        self.read().redo.len()
     }
 
     /// Render the composed output frame at time `t` as RGBA8 bytes. If `width`/
     /// `height` are non-zero and differ from the project size, the composite is
     /// nearest-neighbour resized to that output size.
     pub fn render_frame(&self, t: f64, width: u32, height: u32) -> Result<Vec<u8>> {
-        let g = self.lock()?;
+        let g = self.read();
         let frame = compose_frame_graded(&g.project, t, None)?;
         if width == 0 || height == 0 || (width == frame.width && height == frame.height) {
             Ok(frame.data)
@@ -100,29 +184,36 @@ impl Editor {
 
     /// Serialize the current project to JSON (undo history is not persisted).
     pub fn save_json(&self) -> Result<String> {
-        let g = self.lock()?;
-        project_io::to_json(&g.project)
+        project_io::to_json(&self.read().project)
     }
 
     /// Replace the project from JSON and clear the undo/redo history.
     pub fn load_json(&self, json: &str) -> Result<()> {
         let project = project_io::from_json(json)?;
-        let mut g = self.lock()?;
-        g.project = project;
-        g.undo.clear();
-        g.redo.clear();
+        {
+            let mut g = self.write();
+            g.project = project;
+            g.undo.clear();
+            g.redo.clear();
+        }
+        self.emit(Event::ProjectChanged);
         Ok(())
     }
 
-    /// Inspect the current project under the lock (for hosts/tests).
+    /// Inspect the current project under a read lock (for hosts/tests).
     pub fn with_project<R>(&self, f: impl FnOnce(&Project) -> R) -> Result<R> {
-        let g = self.lock()?;
-        Ok(f(&g.project))
+        Ok(f(&self.read().project))
     }
 
     /// A snapshot clone of the current project.
     pub fn project_snapshot(&self) -> Result<Project> {
         self.with_project(|p| p.clone())
+    }
+
+    /// The plugin manager for this editor (built-ins registered; shares the
+    /// editor's event bus).
+    pub fn plugins(&self) -> Arc<PluginManager> {
+        Arc::clone(&self.plugins)
     }
 
     // ── ergonomic builders (each wraps a command) ──────────────────────────

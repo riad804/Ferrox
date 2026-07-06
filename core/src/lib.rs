@@ -16,9 +16,12 @@ pub mod gpu;
 pub use gpu::{BlurGpu, GpuFilter, ResizeGpu};
 pub mod anim;
 pub mod blend;
+pub mod bus;
 pub mod color;
+pub mod event;
 pub mod keyer;
 pub mod mask;
+pub mod plugin;
 pub mod registry;
 pub mod timeline;
 pub mod transitions;
@@ -43,6 +46,26 @@ pub use filters::{TextColor, DrawTextFilter};
 pub use frame::{Frame, PixelFormat};
 pub use anim::{Curve, Easing, Keyframe};
 pub use blend::BlendMode;
+pub use bus::InProcessBus;
+pub use event::{Event, EventListener, EventSink, NoopSink};
+pub use plugin::{
+    Capability, CapabilitySet, Plugin, PluginKind, PluginManager, PluginMetadata, PLUGIN_API_VERSION,
+};
+
+/// Clean-Architecture layering facades (vocabulary over the existing modules).
+///
+/// The **domain** is the set of pure, I/O-free modules (`timeline`, `color`,
+/// `mask`, `anim`, …). **ports** are the trait seams the application depends on;
+/// **infra** are their concrete implementations. The **application** layer lives
+/// in the `ferrox-sdk` crate (`Editor`, commands, managers).
+pub mod ports {
+    //! Trait seams (Dependency Inversion) the application layer depends on.
+    pub use crate::event::{EventListener, EventSink};
+}
+pub mod infra {
+    //! Concrete implementations of the [`crate::ports`].
+    pub use crate::bus::InProcessBus;
+}
 pub use color::{AscCdl, ColorGrade, Lut3D};
 pub use keyer::Keyer;
 pub use mask::Mask;
