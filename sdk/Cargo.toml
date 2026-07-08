@@ -2,6 +2,7 @@
 name = "ferrox-sdk"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 # The Unified Editor SDK: a handle-based, FFI-friendly facade over ferrox-core.
 # Wraps a `ferrox_core::Project` as the single source of truth, mutated only

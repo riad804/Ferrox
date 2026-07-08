@@ -2,6 +2,7 @@
 name = "ferrox-ai"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 
 # Optional, model-backed AI layer. Kept OUT of ferrox-core so the core stays
 # pure-Rust, deterministic, and WASM-safe. AI features are extension traits that

@@ -76,4 +76,8 @@ cargo build -p ferrox-core --target wasm32-unknown-unknown --no-default-features
 
 ## License
 
-TBD — dual-license (open core + commercial SDK) planned.
+Licensed under the [MIT License](LICENSE).
+
+Note: the optional `mp3-encode` feature pulls in `mp3lame-encoder`/`mp3lame-sys`, which are
+**LGPL-3.0**. If you build with that feature, your distribution must comply with the LGPL
+(e.g. dynamic linking / relinking rights). It is off by default.

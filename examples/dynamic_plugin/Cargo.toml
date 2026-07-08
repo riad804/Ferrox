@@ -2,6 +2,7 @@
 name = "ferrox-example-plugin"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
 publish = false
 
 # A reference **dynamic plugin** — compiled to a shared library and loaded by the
