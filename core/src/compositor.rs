@@ -12,7 +12,7 @@
 //! path can move to Lanczos/`ResizeFilter` and the whole composite can move to
 //! the `gpu` (wgpu) path for real-time preview without changing callers.
 
-use crate::blend::BlendMode;
+use crate::blend::composite_over;
 use crate::color::Lut3D;
 use crate::error::{Error, Result};
 use crate::frame::{Frame, PixelFormat};
@@ -58,7 +58,7 @@ pub fn compose_frame_graded(project: &Project, t: f64, output_lut: Option<&Lut3D
             if let Some(mask) = &clip.mask {
                 mask.apply_frame(&mut src)?;
             }
-            composite_blend(&mut canvas, &src, tf.x, tf.y, tf.opacity, clip.blend);
+            composite_over(&mut canvas, &src, tf.x, tf.y, tf.opacity, clip.blend);
         }
     }
 
@@ -103,43 +103,5 @@ fn scale_nearest(src: &Frame, scale: f32) -> Frame {
     Frame::new(nw, nh, PixelFormat::Rgba8, data)
 }
 
-/// Composite `src` over `canvas` (both `Rgba8`) at top-left `(x, y)` using
-/// `mode`, scaling the source coverage by `opacity`:
-/// `out = d·(1 − a) + a·blend(d, s)`. The canvas stays fully opaque.
-fn composite_blend(canvas: &mut Frame, src: &Frame, x: i32, y: i32, opacity: f32, mode: BlendMode) {
-    let opacity = opacity.clamp(0.0, 1.0);
-    if opacity == 0.0 {
-        return;
-    }
-    let (cw, ch) = (canvas.width as i32, canvas.height as i32);
-    let (sw, sh) = (src.width as i32, src.height as i32);
-
-    for sy in 0..sh {
-        let cy = y + sy;
-        if cy < 0 || cy >= ch {
-            continue;
-        }
-        for sx in 0..sw {
-            let cx = x + sx;
-            if cx < 0 || cx >= cw {
-                continue;
-            }
-            let si = ((sy * sw + sx) * 4) as usize;
-            let ci = ((cy * cw + cx) * 4) as usize;
-
-            let a = (src.data[si + 3] as f32 / 255.0) * opacity;
-            if a == 0.0 {
-                continue;
-            }
-            let inv = 1.0 - a;
-            for k in 0..3 {
-                let s = src.data[si + k] as f32 / 255.0;
-                let d = canvas.data[ci + k] as f32 / 255.0;
-                let blended = mode.blend(d, s);
-                let out = d * inv + a * blended;
-                canvas.data[ci + k] = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
-            }
-            canvas.data[ci + 3] = 255;
-        }
-    }
-}
+// Compositing now lives in [`crate::blend::composite_over`] (shared with the
+// render backends).

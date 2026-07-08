@@ -1,7 +1,9 @@
 use std::io::{Read, Write};
 use crate::{Frame, Result, audio::AudioFrame, media::MediaFrame};
 #[cfg(feature = "video-codecs")]
-use crate::video::{EncodedPacket, Packet, StreamInfo, VideoFrame};
+use crate::video::{Packet, StreamInfo, VideoFrame};
+#[cfg(feature = "encode")]
+use crate::video::EncodedPacket;
 
 /// Identifies a media format.
 pub trait Format: Send + Sync {

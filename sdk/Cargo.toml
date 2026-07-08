@@ -1,0 +1,38 @@
+[package]
+name = "ferrox-sdk"
+version = "0.1.0"
+edition = "2021"
+
+# The Unified Editor SDK: a handle-based, FFI-friendly facade over ferrox-core.
+# Wraps a `ferrox_core::Project` as the single source of truth, mutated only
+# through an undo/redo command stack. Consumed directly by the CLI and, via thin
+# binding layers, by WASM (web) and UniFFI (Android/iOS).
+
+[lib]
+name = "ferrox_sdk"
+
+[features]
+default = ["export"]
+# Headless MP4 export (AV1 via rav1e + fMP4 mux). Off for wasm builds.
+export = ["ferrox-core/encode"]
+# Optional AI backend integration (kept decoupled — the SDK compiles without it).
+ai = ["dep:ferrox-ai"]
+
+[dependencies]
+# Default-features off so a wasm build stays free of the native-only `encode`
+# (rav1e) path; the `export` feature opts back into it for native targets.
+ferrox-core = { path = "../core", default-features = false, features = [
+    "image-codecs", "audio-codecs", "video-codecs", "filters-extra", "gif-support",
+] }
+ferrox-ai = { path = "../ai", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
+criterion = "0.5"
+
+[[bench]]
+name = "editor_render"
+harness = false

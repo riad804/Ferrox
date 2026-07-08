@@ -15,13 +15,33 @@ pub mod gpu;
 #[cfg(feature = "gpu")]
 pub use gpu::{BlurGpu, GpuFilter, ResizeGpu};
 pub mod anim;
+pub mod asset;
 pub mod blend;
+pub mod bus;
+pub mod cache;
 pub mod color;
+pub mod event;
+/// Font system — requires the `filters-extra` (ab_glyph) rasteriser.
+#[cfg(feature = "filters-extra")]
+pub mod font;
 pub mod keyer;
 pub mod mask;
+pub mod playback;
+pub mod plugin;
 pub mod registry;
+pub mod render;
+/// Versioned, compressed project storage: container, migration, snapshots, diff.
+pub mod storage;
+/// Subtitle engine (SRT/WebVTT/ASS parse; render behind `filters-extra`).
+pub mod subtitle;
+/// Background task system — native only (no threads on `wasm32`).
+#[cfg(not(target_arch = "wasm32"))]
+pub mod task;
 pub mod timeline;
 pub mod transitions;
+/// Vector graphics (SVG) — requires the `svg` feature (resvg).
+#[cfg(feature = "svg")]
+pub mod vector;
 pub mod compositor;
 pub mod traits;
 pub mod video;
@@ -41,8 +61,35 @@ pub use filters::{
 #[cfg(feature = "filters-extra")]
 pub use filters::{TextColor, DrawTextFilter};
 pub use frame::{Frame, PixelFormat};
-pub use anim::{Curve, Easing, Keyframe};
+pub use anim::{AnimationGroup, Curve, Easing, Keyframe};
 pub use blend::BlendMode;
+pub use bus::InProcessBus;
+pub use asset::{AssetId, AssetKind, AssetManager, AssetMetadata, AssetSource, DependencyGraph};
+pub use cache::{CacheBudgets, LruCache, ResourceCache, SharedCache, Weight};
+pub use event::{Event, EventListener, EventSink, NoopSink};
+#[cfg(feature = "filters-extra")]
+pub use font::FontManager;
+#[cfg(not(target_arch = "wasm32"))]
+pub use task::{Priority, TaskControl, TaskHandle, TaskId, TaskManager, TaskOutcome, TaskState};
+pub use plugin::{
+    Capability, CapabilitySet, Plugin, PluginKind, PluginManager, PluginMetadata, PLUGIN_API_VERSION,
+};
+
+/// Clean-Architecture layering facades (vocabulary over the existing modules).
+///
+/// The **domain** is the set of pure, I/O-free modules (`timeline`, `color`,
+/// `mask`, `anim`, …). **ports** are the trait seams the application depends on;
+/// **infra** are their concrete implementations. The **application** layer lives
+/// in the `ferrox-sdk` crate (`Editor`, commands, managers).
+pub mod ports {
+    //! Trait seams (Dependency Inversion) the application layer depends on.
+    pub use crate::event::{EventListener, EventSink};
+}
+pub mod infra {
+    //! Concrete implementations of the [`crate::ports`].
+    pub use crate::bus::InProcessBus;
+    pub use crate::cache::{LruCache, ResourceCache, SharedCache};
+}
 pub use color::{AscCdl, ColorGrade, Lut3D};
 pub use keyer::Keyer;
 pub use mask::Mask;
@@ -52,6 +99,12 @@ pub use timeline::{
     Transform,
 };
 pub use compositor::{compose_frame, compose_frame_graded};
+pub use playback::{PlaybackController, PlayState, Transport};
+pub use subtitle::{Cue, KaraokeSegment, Subtitle, SubtitleFormat};
+pub use storage::{Change, Compression, ProjectDiff, Snapshot, SnapshotHistory};
+pub use render::{
+    default_backend, AdaptiveQuality, Capabilities, CpuBackend, RenderBackend, RenderProfile,
+};
 pub use audio::effects::{apply_effects, AudioEffect, EqBand, EqKind};
 pub use audio::mixer::{mix, mix_full, render_audio};
 pub use audio::waveform::{generate_waveform, WaveformBucket};
@@ -81,9 +134,10 @@ pub use traits::{ContainerDemuxer, VideoDecoder};
 pub use demux_graph::{
     extract_audio, extract_frames, ContainerKind, ExtractResult,
     any_yuv_to_rgb8, yuv420p_to_rgb8, yuv420p_hdr_to_rgb8, yuv422p_to_rgb8, yuv444p_to_rgb8,
+    rgb8_to_yuv420p,
 };
 #[cfg(feature = "encode")]
-pub use codecs::video::{Av1Encoder, FMp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
+pub use codecs::video::{Av1Encoder, FMp4Muxer, Mp4Muxer, MpegTsMuxer, WebmMuxer, build_fmp4_init, build_fmp4_segment};
 #[cfg(feature = "encode")]
 pub use traits::{ContainerMuxer, VideoEncoder};
 #[cfg(feature = "encode")]
