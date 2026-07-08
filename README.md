@@ -6,7 +6,7 @@ ferrox is a cross-platform video / audio / image **editing engine** shipped as a
 pure-Rust core drives a handle-based `Editor` API that binds with identical semantics to
 **Kotlin & Swift** (via UniFFI) and **TypeScript** (via WebAssembly).
 
-[![CI](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/ferrox/actions/workflows/ci.yml)
+[![CI](https://github.com/riad804/Ferrox/actions/workflows/ci.yml/badge.svg)](https://github.com/riad804/Ferrox/actions/workflows/ci.yml)
 
 ## Workspace
 
@@ -53,6 +53,16 @@ Projects are plain JSON (`serde`), forward/backward compatible, and identical ac
 > tested. Surfacing the full `Editor` across UniFFI (mobile) and WASM (web) is in progress. Video
 > decode/encode on the hot path uses the platform codecs (MediaCodec / VideoToolbox / WebCodecs);
 > the portable engine handles compositing, color, and audio.
+
+## Downloads
+
+Every merge to `main` publishes fresh release builds to the rolling **[`latest`](https://github.com/riad804/Ferrox/releases/tag/latest)** release. The URLs below always point at the newest build:
+
+| Platform | Download | Contents |
+|----------|----------|----------|
+| **Android** | [`ferrox-android.zip`](https://github.com/riad804/Ferrox/releases/download/latest/ferrox-android.zip) | `jniLibs/` (`.so` per ABI) + Kotlin bindings |
+| **iOS** | [`ferrox-ios.zip`](https://github.com/riad804/Ferrox/releases/download/latest/ferrox-ios.zip) | `Ferrox.xcframework` + Swift bindings |
+| **Web** | [`ferrox-web.zip`](https://github.com/riad804/Ferrox/releases/download/latest/ferrox-web.zip) | WASM npm package (`web/pkg`) |
 
 ## Build & test
 

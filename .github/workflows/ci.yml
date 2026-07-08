@@ -133,3 +133,166 @@ jobs:
             --target wasm32-unknown-unknown \
             --no-default-features \
             --features "wasm"
+
+  # ── release builds (main only) ───────────────────────────────────────────────
+  # These jobs run ONLY on a push to `main` (i.e. after a PR is merged), not on
+  # pull_request or tag events. Each produces an uploadable release artifact.
+
+  release-android:
+    name: Release build — Android
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-android-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --quiet
+
+      # ubuntu-latest ships an Android SDK+NDK; ANDROID_HOME is preset on the
+      # runner, and build-android.sh resolves the NDK from ANDROID_HOME/ndk.
+      - name: Build Android release (jniLibs + Kotlin bindings)
+        run: ./scripts/build-android.sh
+
+      - name: Package Android release
+        run: |
+          mkdir -p release/ferrox-android/jniLibs release/ferrox-android/kotlin
+          cp -R dist/android/jniLibs/. release/ferrox-android/jniLibs/
+          cp -R bindings/kotlin/. release/ferrox-android/kotlin/
+          (cd release && zip -r ferrox-android.zip ferrox-android)
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrox-android-release
+          path: release/ferrox-android.zip
+          if-no-files-found: error
+
+  release-ios:
+    name: Release build — iOS
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-ios-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build iOS release (Ferrox.xcframework + Swift bindings)
+        run: ./scripts/build-ios.sh
+
+      - name: Package iOS release
+        run: |
+          mkdir -p release/ferrox-ios/swift
+          cp -R dist/ios/Ferrox.xcframework release/ferrox-ios/
+          cp -R bindings/swift/. release/ferrox-ios/swift/
+          (cd release && zip -r ferrox-ios.zip ferrox-ios)
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrox-ios-release
+          path: release/ferrox-ios.zip
+          if-no-files-found: error
+
+  release-web:
+    name: Release build — Web (WASM npm package)
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + WASM target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry + build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-web-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build Web release (wasm-pack, bundler target)
+        run: ./scripts/build-web.sh bundler
+
+      - name: Package Web release
+        run: |
+          mkdir -p release
+          cp -R web/pkg release/ferrox-web
+          (cd release && zip -r ferrox-web.zip ferrox-web)
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrox-web-release
+          path: release/ferrox-web.zip
+          if-no-files-found: error
+
+  # ── publish rolling "latest" release ─────────────────────────────────────────
+  # Collects the three platform zips and (re)publishes them to a single rolling
+  # pre-release tagged `latest`, so anyone can grab stable download URLs like:
+  #   https://github.com/<owner>/<repo>/releases/download/latest/ferrox-web.zip
+  publish-release:
+    name: Publish "latest" release
+    needs: [release-android, release-ios, release-web]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create/update releases and tags
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish/refresh the `latest` release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest builds
+          body: |
+            Rolling release — always the builds from the latest commit on `main`.
+
+            Commit: ${{ github.sha }}
+
+            Downloads:
+            - `ferrox-android.zip` — jniLibs (`.so` per ABI) + Kotlin bindings
+            - `ferrox-ios.zip` — `Ferrox.xcframework` + Swift bindings
+            - `ferrox-web.zip` — WASM npm package (`web/pkg`)
+          prerelease: true
+          make_latest: false
+          files: artifacts/**/*.zip
