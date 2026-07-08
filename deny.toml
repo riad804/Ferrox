@@ -33,10 +33,9 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",   # allowed — weak copyleft, compatible with our use
 ]
-# Unlicensed crates are denied.
-unlicensed = "deny"
-# Crates with multiple licences: allow if ANY listed licence is acceptable.
-copyleft = "warn"
+# In the v2 license config, any crate whose license is not in `allow` above is
+# denied automatically — including unlicensed and copyleft crates. The old
+# `unlicensed` / `copyleft` keys were removed (cargo-deny PR #611).
 
 # ── Bans ─────────────────────────────────────────────────────────────────────
 [bans]
