@@ -29,9 +29,11 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "Unicode-DFS-2016",
+    "Unicode-3.0",   # newer Unicode license (unicode-ident); permissive
     "Zlib",
     "CC0-1.0",
-    "MPL-2.0",   # allowed — weak copyleft, compatible with our use
+    "MPL-2.0",       # allowed — weak copyleft, compatible with our use
+    "LGPL-3.0",      # mp3lame-encoder/-sys (mp3-encode feature); copyleft — see note
 ]
 # In the v2 license config, any crate whose license is not in `allow` above is
 # denied automatically — including unlicensed and copyleft crates. The old
