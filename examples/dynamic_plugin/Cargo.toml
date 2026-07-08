@@ -1,0 +1,15 @@
+[package]
+name = "ferrox-example-plugin"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A reference **dynamic plugin** — compiled to a shared library and loaded by the
+# host via `ferrox_core::plugin::load_plugin`. Depends only on the always-present
+# C-ABI contract (no default features → no rav1e/codecs), so it builds fast.
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ferrox-core = { path = "../../core", default-features = false }

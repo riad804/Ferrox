@@ -109,6 +109,11 @@ pub(super) struct GpuContext {
     pub(super) queue: wgpu::Queue,
 }
 
+/// Whether a compatible GPU adapter is available (drives backend selection).
+pub fn adapter_available() -> bool {
+    gpu_context().is_some()
+}
+
 /// Try to acquire a wgpu device + queue. Returns `None` on headless/CI runners
 /// without a compatible GPU.
 #[cfg(feature = "gpu")]

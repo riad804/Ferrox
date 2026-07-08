@@ -25,6 +25,9 @@ pub enum Error {
 
     #[error("invalid dimensions: width={width}, height={height}")]
     InvalidDimensions { width: u32, height: u32 },
+
+    #[error("not found: {0}")]
+    NotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

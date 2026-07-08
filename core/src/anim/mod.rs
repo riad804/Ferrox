@@ -9,7 +9,14 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod group;
+pub use group::AnimationGroup;
+
 /// How a segment interpolates from one keyframe to the next.
+///
+/// Beyond the linear/step/bezier presets, the expressive easings (spring,
+/// elastic, bounce, back) may **overshoot** `[0, 1]` — that's the point of
+/// physical motion. `Bezier` provides fully custom easing.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Easing {
@@ -23,10 +30,20 @@ pub enum Easing {
     EaseInOut,
     /// Arbitrary CSS-style cubic-bezier control points `(x1, y1, x2, y2)`.
     Bezier { x1: f32, y1: f32, x2: f32, y2: f32 },
+    /// A damped-spring settle: `1 − e^(−damping·u)·cos(stiffness·u)`. Overshoots.
+    Spring { stiffness: f32, damping: f32 },
+    /// Elastic ease-out — oscillates with decaying amplitude before settling.
+    Elastic,
+    /// Bounce ease-out — bounces to rest.
+    Bounce,
+    /// Back ease-out — overshoots past the target then settles. `overshoot`
+    /// controls how far (≈ 1.70158 for the classic feel).
+    Back { overshoot: f32 },
 }
 
 impl Easing {
-    /// Map a normalised segment progress `u` in [0,1] to an eased output in [0,1].
+    /// Map a normalised segment progress `u` in `[0, 1]` to an eased output.
+    /// Most easings stay in `[0, 1]`; spring/elastic/back may overshoot.
     pub fn ease(self, u: f32) -> f32 {
         let u = u.clamp(0.0, 1.0);
         match self {
@@ -36,8 +53,60 @@ impl Easing {
             Easing::EaseOut => cubic_bezier(0.0, 0.0, 0.58, 1.0, u),
             Easing::EaseInOut => cubic_bezier(0.42, 0.0, 0.58, 1.0, u),
             Easing::Bezier { x1, y1, x2, y2 } => cubic_bezier(x1, y1, x2, y2, u),
+            Easing::Spring { stiffness, damping } => spring(u, stiffness, damping),
+            Easing::Elastic => elastic_out(u),
+            Easing::Bounce => bounce_out(u),
+            Easing::Back { overshoot } => back_out(u, overshoot),
         }
     }
+}
+
+/// Damped-spring easing, endpoints forced to 0 and 1.
+fn spring(u: f32, stiffness: f32, damping: f32) -> f32 {
+    if u <= 0.0 {
+        0.0
+    } else if u >= 1.0 {
+        1.0
+    } else {
+        1.0 - (-damping * u).exp() * (stiffness * u).cos()
+    }
+}
+
+/// Penner elastic ease-out.
+fn elastic_out(u: f32) -> f32 {
+    if u <= 0.0 {
+        0.0
+    } else if u >= 1.0 {
+        1.0
+    } else {
+        let p = 0.3f32;
+        2f32.powf(-10.0 * u) * ((u - p / 4.0) * (2.0 * std::f32::consts::PI / p)).sin() + 1.0
+    }
+}
+
+/// Standard bounce ease-out (hits 0 and 1 exactly).
+fn bounce_out(mut u: f32) -> f32 {
+    const N: f32 = 7.5625;
+    const D: f32 = 2.75;
+    if u < 1.0 / D {
+        N * u * u
+    } else if u < 2.0 / D {
+        u -= 1.5 / D;
+        N * u * u + 0.75
+    } else if u < 2.5 / D {
+        u -= 2.25 / D;
+        N * u * u + 0.9375
+    } else {
+        u -= 2.625 / D;
+        N * u * u + 0.984375
+    }
+}
+
+/// Back ease-out — overshoots past 1 then settles (0 and 1 exact).
+fn back_out(u: f32, overshoot: f32) -> f32 {
+    let c1 = overshoot;
+    let c3 = c1 + 1.0;
+    1.0 + c3 * (u - 1.0).powi(3) + c1 * (u - 1.0).powi(2)
 }
 
 /// One keyframe: a `value` at time `t` (seconds), and the [`Easing`] used to

@@ -7,6 +7,49 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::frame::Frame;
+
+/// Composite `top` over `base` (both `Rgba8`) at top-left `(x, y)` using `mode`,
+/// scaling the source coverage by `opacity`: `out = d·(1 − a) + a·blend(d, s)`.
+/// `base` stays fully opaque. This is the shared compositing kernel used by the
+/// compositor and the render backends.
+pub fn composite_over(base: &mut Frame, top: &Frame, x: i32, y: i32, opacity: f32, mode: BlendMode) {
+    let opacity = opacity.clamp(0.0, 1.0);
+    if opacity == 0.0 {
+        return;
+    }
+    let (cw, ch) = (base.width as i32, base.height as i32);
+    let (sw, sh) = (top.width as i32, top.height as i32);
+
+    for sy in 0..sh {
+        let cy = y + sy;
+        if cy < 0 || cy >= ch {
+            continue;
+        }
+        for sx in 0..sw {
+            let cx = x + sx;
+            if cx < 0 || cx >= cw {
+                continue;
+            }
+            let si = ((sy * sw + sx) * 4) as usize;
+            let ci = ((cy * cw + cx) * 4) as usize;
+
+            let a = (top.data[si + 3] as f32 / 255.0) * opacity;
+            if a == 0.0 {
+                continue;
+            }
+            let inv = 1.0 - a;
+            for k in 0..3 {
+                let s = top.data[si + k] as f32 / 255.0;
+                let d = base.data[ci + k] as f32 / 255.0;
+                let out = d * inv + a * mode.blend(d, s);
+                base.data[ci + k] = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
+            }
+            base.data[ci + 3] = 255;
+        }
+    }
+}
+
 /// How a clip's pixels combine with the layers beneath it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

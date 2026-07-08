@@ -21,6 +21,8 @@ simd = ["dep:wide"]
 # Host-side dynamic plugin loading (desktop only; the ABI contract itself is
 # always available so plugin authors need only default features).
 dynamic-plugins = ["dep:libloading"]
+# Vector graphics: SVG rasterisation via resvg (pure Rust, WASM-compatible).
+svg = ["dep:resvg"]
 # Optional C-backed decoders — off by default, pure-Rust build stays the default.
 vp9 = ["video-codecs", "dep:dav1d"]
 h264 = ["video-codecs", "dep:openh264"]
@@ -40,6 +42,9 @@ tracing = "0.1"
 # Serialization for the editing timeline (project save/load) — pure Rust.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Pure-Rust DEFLATE for compressed project storage (WASM-safe; already in-tree
+# transitively via `png`, promoted to a direct dependency here).
+miniz_oxide = "0.8"
 hound = "3"
 claxon = "0.4"
 lewton = "0.10"
@@ -89,6 +94,9 @@ wide = { version = "0.7", optional = true }
 # Host dynamic plugin loading (feature = "dynamic-plugins", desktop only)
 libloading = { version = "0.8", optional = true }
 
+# SVG rasterisation (feature = "svg")
+resvg = { version = "0.44", optional = true, default-features = false }
+
 # WASM bindings (feature = "wasm")
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
@@ -106,4 +114,8 @@ criterion = "0.5"
 
 [[bench]]
 name = "plugin_registry"
+harness = false
+
+[[bench]]
+name = "cache"
 harness = false
